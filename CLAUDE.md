@@ -95,6 +95,7 @@ Ben did: one instruction (and, at most, one answer).
 - **Research → writing:** Grok's research lands in the thread with sources, then ChatGPT drafts from it. No copy-paste. (Works today as two hand-offs on one thread; automatic chaining comes later.)
 - **Rovo ↔ Claude:** Rovo answers questions from company knowledge (Confluence, Jira history) when the Planner needs them.
 - **Ben's agent ↔ someone else's agent:** Ben's planner hands work to a colleague's agent, which asks its questions back and reports results, with both people's approval of the line.
+- **Personal ↔ work:** your personal assistant and your work assistant help each other without mixing accounts. A personal question never shows up in the work account's history, and the line decides exactly what crosses each way (Ben, 2026-10-12: a second selling point after chat to chat).
 - **Developer loop (the old hero):** Cursor adapter, GitHub merges, Jira. Only if Ben's own handoffs call for it.
 
 Design the data model, adapters and canvas so these are "connect + draw a line," not new features.
