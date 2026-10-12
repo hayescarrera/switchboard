@@ -221,6 +221,8 @@ describe("after the user answers", () => {
     await expect(
       w.router.answerEscalation({ escalationId: esc.id, userId: w.ben.id, answer: "One go." }),
     ).rejects.toThrow(/already been answered/);
+    // Let the first answer's work finish, so it can't race the next test's reset.
+    await w.router.idle();
   });
 
   it("resumes a thread paused for a reason with no one waiting on the answer", async () => {
