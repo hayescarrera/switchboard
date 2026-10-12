@@ -17,7 +17,7 @@ export function testPool(): Db {
 /** Wipe every table. TRUNCATE skips the events table's no-delete trigger on purpose. */
 export async function resetDb(db: Db): Promise<void> {
   await db.query(
-    `TRUNCATE events, escalations, runs, messages, threads, line_owners, lines, agents, users RESTART IDENTITY CASCADE`,
+    `TRUNCATE chat_cursors, events, escalations, runs, messages, threads, line_owners, lines, agents, users RESTART IDENTITY CASCADE`,
   );
 }
 

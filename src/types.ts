@@ -75,6 +75,7 @@ export interface Message {
   type: MessageType;
   body: string;
   context: ThreadContext;
+  attachments: Record<string, unknown>[];
   created_at: Date;
 }
 

@@ -153,3 +153,19 @@ export async function openEscalations(db: Db, threadId?: string): Promise<Escala
   );
   return rows;
 }
+
+/**
+ * Add to the thread's shared context: list fields (decisions, constraints, ...)
+ * are appended to, other fields replaced. Every agent reads the new state next time.
+ */
+export async function addToContext(db: Db, threadId: string, added: ThreadContext, by: string): Promise<void> {
+  const thread = await getThread(db, threadId);
+  const next: ThreadContext = { ...thread.context };
+  for (const [field, value] of Object.entries(added)) {
+    if (value === undefined) continue;
+    const current = next[field];
+    next[field] = Array.isArray(current) && Array.isArray(value) ? [...current, ...value] : value;
+  }
+  await db.query(`UPDATE threads SET context = $2 WHERE id = $1`, [threadId, next]);
+  await logEvent(db, { kind: "context.updated", at: new Date(), threadId, data: { fields: Object.keys(added), by } });
+}

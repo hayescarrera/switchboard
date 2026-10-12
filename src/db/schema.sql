@@ -137,3 +137,11 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS events_no_update ON events;
 CREATE TRIGGER events_no_update BEFORE UPDATE OR DELETE ON events
   FOR EACH ROW EXECUTE FUNCTION events_append_only();
+
+-- Per-chat "last seen" marker (CLAUDE.md 6.4): which event each chat app last
+-- caught up to, so its digest only shows what's new.
+CREATE TABLE IF NOT EXISTS chat_cursors (
+  client         text PRIMARY KEY,               -- the chat app's name, e.g. "claude-ai" or "claude-code"
+  last_event_id  bigint NOT NULL DEFAULT 0,
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);

@@ -101,7 +101,8 @@ describe("answering from the thread", () => {
       ["planner", "answer", "Export format: CSV, not Excel."],
       ["builder", "result", "Built it. Went with: Export format: CSV, not Excel."],
     ]);
-    expect((await getThread(db, w.thread.id)).status).toBe("active");
+    // The builder reported back on the only task, so the planner closed the thread.
+    expect((await getThread(db, w.thread.id)).status).toBe("done");
     expect(await openEscalations(db)).toEqual([]);
   });
 
@@ -183,7 +184,7 @@ describe("after the user answers", () => {
       ["builder", "result", "Built it. Went with: Stream it."],
     ]);
     const thread = await getThread(db, w.thread.id);
-    expect(thread.status).toBe("active");
+    expect(thread.status).toBe("done");
     expect(thread.context.user_answers).toEqual([
       { question: "Should we stream the file or build it in one go?", answer: "Stream it." },
     ]);

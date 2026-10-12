@@ -18,6 +18,11 @@
 // escalation on the user's waiting-on-you list. `answerEscalation` writes the
 // user's answer into the thread's shared context, resumes the thread, and sends
 // the answer to whoever was waiting on it.
+//
+// An agent can also hand work on (a `delegate` event: a new task from it to a
+// third agent, which needs its own line) and say the thread's work is finished
+// (a `complete` event: the thread is marked done). A new task on a done thread
+// picks it back up.
 
 import type pg from "pg";
 import type { Adapter, AdapterEvent, RunRef } from "./adapters/adapter.js";
@@ -60,6 +65,10 @@ export interface SendInput {
   context?: ThreadContext;
   /** How long the receiver may go quiet before it is nudged. */
   timeoutSeconds?: number;
+  /** For a task: the agents the receiver should hand the work on to. */
+  routeTo?: string[];
+  /** Notes stored with the message, e.g. that it carries the user's own answer. */
+  attachments?: Record<string, unknown>[];
 }
 
 export interface RouterOptions {
@@ -72,7 +81,7 @@ export interface RouterOptions {
   nudgeText?: string;
 }
 
-const EVENT_TO_MESSAGE: Record<Exclude<AdapterEvent["kind"], "error" | "escalate">, MessageType> = {
+const EVENT_TO_MESSAGE: Record<Exclude<AdapterEvent["kind"], "error" | "escalate" | "delegate" | "complete">, MessageType> = {
   progress: "status",
   question: "question",
   answer: "answer",
@@ -221,7 +230,8 @@ export class Router {
     const { rows } = await this.db.query<Run>(`SELECT * FROM runs WHERE id = $1`, [esc.run_id]);
     const run = rows[0];
     return this.deliver(
-      { threadId: run.thread_id, from: run.agent_id, to: run.requester_id, type: "answer", body: input.answer },
+      { threadId: run.thread_id, from: run.agent_id, to: run.requester_id, type: "answer", body: input.answer,
+        attachments: [{ kind: "user_answer", escalation_id: esc.id }] },
       run,
     );
   }
@@ -237,6 +247,12 @@ export class Router {
       await client.query("BEGIN");
       const thread = await lockThread(client, input.threadId);
       const base = { threadId: input.threadId, agentId: input.from };
+      // New work picks a finished thread back up.
+      if (thread.status === "done" && input.type === "task" && !replyOn) {
+        await client.query(`UPDATE threads SET status = 'active', status_reason = NULL WHERE id = $1`, [thread.id]);
+        thread.status = "active";
+        await logEvent(client, { kind: "thread.reopened", at, ...base });
+      }
       await logEvent(client, {
         kind: "message.received", at, ...base,
         data: { from: input.from, to: input.to, type: input.type, reply_to_run: replyOn?.id ?? null },
@@ -319,9 +335,10 @@ export class Router {
     });
 
     const { rows } = await client.query<Message>(
-      `INSERT INTO messages (thread_id, line_id, from_agent, to_agent, type, body, context)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [thread.id, line.id, input.from, input.to, input.type, input.body, scoped],
+      `INSERT INTO messages (thread_id, line_id, from_agent, to_agent, type, body, context, attachments)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [thread.id, line.id, input.from, input.to, input.type, input.body, scoped,
+        JSON.stringify(input.attachments ?? [])],
     );
     const message = rows[0];
     await client.query(
@@ -332,7 +349,7 @@ export class Router {
     );
     await logEvent(client, {
       kind: "message.delivered", at, ...ids, lineId: line.id, messageId: message.id,
-      data: { from: input.from, to: input.to, type: input.type },
+      data: { from: input.from, to: input.to, type: input.type, route_to: input.routeTo ?? null },
     });
     return { message, thread, line, receiver };
   }
@@ -397,6 +414,7 @@ export class Router {
         context: d.message.context,
         fromAgentId: d.message.from_agent,
         toAgentId: d.message.to_agent,
+        routeTo: input.routeTo,
       });
     } catch (err) {
       await this.db.query(`UPDATE runs SET state = 'error' WHERE id = $1`, [run.id]);
@@ -431,6 +449,19 @@ export class Router {
           threadId: run.thread_id, reason: "agent_unsure", summary: event.summary,
           question: event.body, runId: run.id, agentId: run.agent_id,
         });
+        continue;
+      }
+      if (event.kind === "delegate") {
+        // A new task from this agent, so it needs this agent's own line to the target.
+        await this.send({ threadId: run.thread_id, from: run.agent_id, to: event.to, type: "task", body: event.body });
+        continue;
+      }
+      if (event.kind === "complete") {
+        const closed = await this.db.query(
+          `UPDATE threads SET status = 'done', status_reason = NULL WHERE id = $1 AND status = 'active'`,
+          [run.thread_id],
+        );
+        if (closed.rowCount) await logEvent(this.db, { kind: "thread.done", at: now, ...ids, data: { body: event.body } });
         continue;
       }
       if (event.kind === "error") {
