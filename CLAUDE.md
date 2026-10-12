@@ -18,11 +18,15 @@ People now work across many AI agents: Claude, Grok, ChatGPT, Rovo, Cursor, and 
 
 ## 2. Who it's for
 
-- **First user: Ben.** Technical but not a software engineer. Thinks visually, Figma-style. Uses several AI tools day to day (Claude, Grok, Rovo and others; not much Cursor personally, though his team uses it). Has agents and chats everywhere, loses track of them, and spends his day remembering to move things between them and copy-pasting. Approves everything before it goes out; doesn't trust blind sends yet.
-- **Second user: someone Ben works with** (e.g. his developer). Receives work from Ben's agents into his own. Proves the cross-person loop, which is the part companies can't do for themselves.
-- **Then:** individuals and small teams (2–30 people), technical and non-technical, who use 3+ AI tools. Individuals spread it (free tier); teams pay (per seat).
+**The non-developer heavy AI user.** Most new AI tooling is built for developers. Switchboard is for the first wave of people who use AI all day for their job but don't write code and don't want to build their own setup: they want their assistants to work together and to see what's going on. Usually they are **employees** using several assistants for their own role (running their role like their own small business); sometimes founders, consultants or PMs. They pay for 2+ assistants (Claude, ChatGPT, Grok, Rovo, Gemini...), lose track of which chat holds what, and spend their day being the meat proxy between them.
 
-Not for: enterprises buying an agent governance platform (Salesforce Agent Fabric, Kong, cloud registries own that).
+- **First user: Ben.** He is that user: a heavy AI user for years, not a software engineer. Thinks visually, Figma-style. Uses Claude, Grok, Rovo and others day to day. Has agents and chats everywhere, loses track of them, and spends his day remembering to move things between them and copy-pasting. Approves everything before it goes out; doesn't trust blind sends yet. **He is building it for himself first**; his own hand-done handoffs decide what gets built next.
+- **Second user: someone Ben works with.** Receives work from Ben's agents into their own. Proves the cross-person loop, which is the part companies can't do for themselves.
+- **Then:** lots of individuals like Ben (it must stay lightweight and self-serve to reach many of them), then small teams (2–30 people). Individuals spread it (free tier); teams pay (per seat).
+
+Not for: developers looking for an orchestration framework (plenty exist), or enterprises buying an agent governance platform (Salesforce Agent Fabric, Kong, cloud registries own that).
+
+**Why it can win:** every AI vendor is trying to keep users on its own platform, which is reasonable. But people already use more than one. Whoever communicates best *between* them provides the value.
 
 ---
 
@@ -70,26 +74,29 @@ A single vendor can use more than one path. Claude is both a chat entry point (t
 
 ## 5. The hero exchange (build until this works end to end)
 
-This is the first exchange we prove because it is concrete and measurable, and Ben's team uses these tools. The product is **not** a dev tool; see 5.1 for where it goes next.
+**Chat to chat.** Ben plans something in his Claude chat, then says: "Have Grok research competitor pricing" (or "get ChatGPT to draft the brief"). No other app gets opened.
 
-Ben plans a feature in Claude, then says: "Have Cursor build this and file it in Jira."
+1. **Claude chat → Planner:** through the MCP connector, Claude hands over the whole conversation (goal, summary, plan, decisions, constraints, open questions, links) with `start_thread`. Too thin → rejected with what's missing.
+2. **Planner → Grok:** the hub's Planner (Claude) hands the task on, with the context the line allows. Grok runs as a hub-run agent on Ben's xAI key.
+3. **Grok → Planner:** asks a question ("which competitors?"). The Planner answers from Ben's decisions. Ben is not involved.
+4. **Grok → Planner:** delivers the result. Every task has a result back, so the thread is done.
+5. **When the Planner can't answer** ("one page or two?"), the question goes to Ben's waiting-on-you list. He answers from his chat (`answer_question`); the answer goes to the agent that asked and is remembered.
+6. **Ben asks his Claude chat "where are we?"** It calls `catch_up` and sees the current state (Grok's result is in, the thread is done), not the state at handoff.
+7. **The board** shows all of it live, on laptop or phone: nodes, lines, messages moving along the lines, waiting-on-you, and the self-answered count.
 
-1. **Claude → Jira:** create the ticket. Jira replies with the link.
-2. **Claude → Cursor:** the plan, decisions, files, ticket. The hub starts a Cursor agent on it.
-3. **Cursor → planner:** asks a question ("stream the file or build it in one go?"). The hub routes it to the **hub's Claude agent**, which now acts as the planner and answers from the plan. Ben is not involved.
-4. **Cursor → planner:** PR opened, link attached. The hub sees the PR on GitHub and moves the Jira ticket to In review.
-5. **Hub → Ben:** "Ready to merge. Approve?" This is the only time Ben is pulled in.
-6. **Ben approves.** The hub merges the PR through GitHub (Cursor opens PRs; it doesn't merge them). Jira closes the ticket, and the release-notes agent drafts the note.
+Ben did: one instruction (and, at most, one answer).
 
-Ben did: one instruction, one approval.
+**Who "Claude" is after the handoff:** the hub cannot type into Ben's Claude app chat. Once `start_thread` is called, the hub's Planner carries the thread. Ben sees what happened on the board, or by asking his Claude chat, which checks in through the connector.
 
-**Who "Claude" is after the handoff:** the hub cannot type into Ben's Claude app chat. Once `start_thread` is called, the hub's Claude agent becomes the planner for that thread, carrying the full handoff. Ben sees what happened on the board, or by asking his Claude chat to run `get_thread`.
+**Why not the old hero (Claude → Cursor → Jira → GitHub merge)?** Atlassian already ships that loop natively (Cursor in Jira, the Claude agent for Jira), and it's a developer loop. Chat to chat is the pain non-developer heavy AI users have every day.
 
 ### 5.1 Exchanges after the hero (to guide design, not v1 scope)
 
-- **Grok ↔ Claude:** Ben's Grok research agent finds something; it lands in the Claude planner's thread with sources attached, and Claude folds it into the plan. No copy-paste.
-- **Rovo ↔ Claude:** Rovo answers questions from company knowledge (Confluence, Jira history) when the Claude planner needs them.
-- **Ben's agent ↔ someone else's agent:** Ben's planner hands work to his developer's agent, which asks its questions back and reports results, with both people's approval of the line.
+- **Research → writing:** Grok's research lands in the thread with sources, then ChatGPT drafts from it. No copy-paste. (Works today as two hand-offs on one thread; automatic chaining comes later.)
+- **Rovo ↔ Claude:** Rovo answers questions from company knowledge (Confluence, Jira history) when the Planner needs them.
+- **Ben's agent ↔ someone else's agent:** Ben's planner hands work to a colleague's agent, which asks its questions back and reports results, with both people's approval of the line.
+- **Personal ↔ work:** your personal assistant and your work assistant help each other without mixing accounts. A personal question never shows up in the work account's history, and the line decides exactly what crosses each way (Ben, 2026-10-12: a second selling point after chat to chat).
+- **Developer loop (the old hero):** Cursor adapter, GitHub merges, Jira. Only if Ben's own handoffs call for it.
 
 Design the data model, adapters and canvas so these are "connect + draw a line," not new features.
 
@@ -170,7 +177,8 @@ A **remote MCP server** (Streamable HTTP + OAuth) that users add to their chat a
 | `get_thread` | Read a thread's history and current state |
 | `catch_up` | What changed in this user's threads since this chat last checked: tickets closed, PRs merged, questions answered, approvals decided. Short, plain-language digest. |
 | `waiting_on_me` | Approvals and escalations for the user |
-| `approve` / `deny` | Decide an approval |
+| `answer_question` | Answer something on the waiting-on-you list (built in milestone 3) |
+| `approve` / `deny` | Decide an approval (milestone 5) |
 
 **Handoff quality is the whole product.** The planner can only answer from what `start_thread` captured. An MCP server only receives what the chat model passes in a tool call; it cannot read the chat on its own. So:
 
@@ -201,8 +209,9 @@ A **remote MCP server** (Streamable HTTP + OAuth) that users add to their chat a
 - **Waiting on you:** approvals + escalations, newest first.
 - **Thread view:** the full conversation between agents with links to jump into each app.
 - Works on phone and laptop. Phone priority: waiting-on-you and approve/deny.
+- **Agent panel:** click an agent to see what it's working on now, and send it a note or nudge (add context, redirect it, answer it in a line). Notes land in the shared thread so every agent sees them. It is not a chat window (principle 9).
 - Visual direction: clean, product-style, Figma-like canvas. Not a developer console. Not a chat UI.
-- The board is built in two stages: a read-only live view early (milestone 4), then the full editable canvas (milestone 8).
+- The board is built in two stages: a read-only live view early (milestone 3, built), then the full editable canvas (milestone 6).
 
 ### 6.7 Security
 
@@ -240,17 +249,16 @@ This is what companies can't do for themselves: two people, each authorizing the
 
 ## 8. Build order (milestones with "done when")
 
-Work one milestone at a time. Don't start the next until "done when" passes.
+Work one milestone at a time. Don't start the next until "done when" passes. Keep each one a lightweight MVP.
 
-1. **Hub skeleton.** Users, Agents, Lines, Threads, Messages, Runs, Events in Postgres; router with Line checks, loop guard and Run timeouts; a fake "echo" adapter. *Done when:* a message from agent A to agent B is delivered only if a Line allows it, every step is in the event log, and a thread past the loop guard pauses. Tests cover allowed, denied, scoped-context, loop-guard and timeout cases.
-2. **Hub Claude agent.** *Done when:* given a thread context, it answers a question from another agent; escalates to the human when it's unsure; and after the human answers, it uses that answer next time without asking again.
-3. **Cursor adapter + GitHub.** *Done when:* the hub starts a Cursor agent on a test repo with instructions, relays one follow-up question to the hub Claude agent and its answer back, sees the resulting PR via GitHub, and records the PR link on the thread. A stalled run gets nudged, then escalated.
-4. **Live view (read-only board).** *Done when:* Ben opens a page on laptop or phone and watches milestone 3's exchange happen: nodes, lines, and messages moving along the lines, driven by the event log. No editing yet. Show Ben a mockup before building.
-5. **MCP connector.** *Done when:* from Claude Code (then the Claude app), Ben runs `start_thread` to Cursor with a full structured handoff, a too-thin handoff is rejected with a clear reason, and later he sees the thread with `get_thread`. After other agents finish work, asking the same chat "where are we?" gets the current state (e.g. PR merged, ticket closed), not the state at handoff.
-6. **Jira (REST).** *Done when:* a thread creates a Jira ticket, moves it to In review on PR open, and closes it on merge.
-7. **Approvals + escalation + notifications.** *Done when:* merge waits for Ben's approval from his phone; nothing merges without it; the hub performs the merge after the yes.
-8. **Full canvas.** *Done when:* Ben sees his agents and lines, draws a new line, edits a line's scope and approval rules, revokes a line, and approves from the waiting-on-you list.
-9. **Second person (the handshake).** *Done when:* Ben invites his developer, the developer accepts and connects his own agent, and a thread from Ben's planner reaches the developer's agent, which asks a question back and reports a result. Revoking the line from either side stops it immediately.
+1. **Hub skeleton.** (Built.) Users, Agents, Lines, Threads, Messages, Runs, Events in Postgres; router with Line checks, loop guard and Run timeouts; a fake "echo" adapter. *Done when:* a message from agent A to agent B is delivered only if a Line allows it, every step is in the event log, and a thread past the loop guard pauses. Tests cover allowed, denied, scoped-context, loop-guard and timeout cases.
+2. **Hub Claude agent.** (Built.) *Done when:* given a thread context, it answers a question from another agent; escalates to the human when it's unsure; and after the human answers, it uses that answer next time without asking again.
+3. **Chat to chat.** (Built; needs a run with Ben's real keys and Claude app.) MCP connector + Grok and ChatGPT as hub-run agents + the read-only live board. *Done when:* from his Claude chat, Ben hands a conversation to Grok (or ChatGPT) with `start_thread`; a too-thin handoff is rejected with a clear reason; Grok's question is answered by the Planner without him; a question the Planner can't answer reaches him and his answer gets the work moving; asking the same chat "where are we?" gets the current state; and he watches it happen on the board on laptop and phone.
+4. **Use it daily.** Ben runs his own handoffs through it for a week. Fix what gets in the way; log which handoffs he still does by hand. Those decide milestone 5 onwards.
+5. **Approvals + notifications.** *Done when:* anything that leaves Ben's agents (a send to a person, spending) waits for his yes, given in one tap from his phone, and nothing goes without it. Answering waiting-on-you from the board.
+6. **Full canvas.** *Done when:* Ben sees his agents and lines, draws a new line, edits a line's scope and approval rules, revokes a line, and approves from the waiting-on-you list.
+7. **Second person (the handshake).** *Done when:* Ben invites someone he works with, they accept and connect their own agent, and a thread from Ben's planner reaches their agent, which asks a question back and reports a result. Revoking the line from either side stops it immediately.
+8. **More agents, as Ben's handoffs call for them:** Rovo (native A2A), Gemini, Cursor + GitHub + Jira (the old developer hero).
 
 ---
 
@@ -271,7 +279,7 @@ Metrics to track from day one:
 
 ## 10. Not in version 1
 
-Telegram/email/Slack channels, Grok/OpenAI adapters, Rovo native A2A (REST first), team billing, a browser extension, a flow/automation editor, our own chat interface. Cross-person lines are in v1 only as milestone 9, between two people who know each other.
+Telegram/email/Slack channels, Rovo native A2A, Cursor/GitHub/Jira (unless Ben's handoffs call for them), team billing, a browser extension, a flow/automation editor, our own chat interface. Cross-person lines are in v1 only as milestone 7, between two people who know each other.
 
 ---
 
@@ -283,7 +291,7 @@ Telegram/email/Slack channels, Grok/OpenAI adapters, Rovo native A2A (REST first
 | Vendor-as-hub | Atlassian Rovo (outside agents become Jira assignees) | Not neutral; won't treat rivals equally. |
 | Agent-to-tool access | Executor (YC S26), One (withone.ai), MCP tool connectors generally | They connect agents to tools. We connect agents to each other. Watch them: adding A2A handoffs is a short step for them. |
 | Dev-first A2A coordination | Synapse Channel, Whispers, CrewForm (open source) | CLI/self-hosted. Prove demand; not a product a non-engineer signs up for. |
-| Shared memory | Mem0 OpenMemory (shared memory across Claude/Cursor via MCP) | Memory, not agents acting and replying. Check before building milestone 5. |
+| Shared memory | Mem0 OpenMemory (shared memory across Claude/Cursor via MCP) | Memory, not agents acting and replying. |
 | Automation | Zapier, n8n, Make | Fixed pipes built in advance. We route in the moment. |
 | Visual agent builders | OpenAI Agent Builder, Copilot Studio, Agentforce, LangGraph Studio | Locked to one vendor's platform. |
 
@@ -315,12 +323,22 @@ Append here when a decision is made or the spec changes. Newest at the bottom.
 - 2026-10-12 — The planner reads the whole live thread context, not the line-scoped copy: it is the hub's own agent holding the user's thread. Line scopes still govern what crosses to other agents.
 - 2026-10-12 — The planner escalates when its model says to, when its confidence is below 0.7, or when the model call fails, so the asking agent never gets a guess or silence. Claude API via the Anthropic TypeScript SDK (not the Agent SDK: one structured call per question is enough), model `claude-opus-5-5` with server-side refusal fallback, overridable with `PLANNER_MODEL`.
 - 2026-10-12 — Run timeouts skip threads that are waiting on the user, and resuming a thread resets the timeout clock on its open runs.
+- 2026-10-12 — Target user is the non-developer heavy AI user (usually an employee using several assistants for their job), not developers. Ben builds it for himself first; it must stay lightweight to reach many such users.
+- 2026-10-12 — Hero exchange is now **chat to chat** (Claude chat → Planner → Grok/ChatGPT, with the live board). The Cursor/Jira/GitHub hero moves to later: Atlassian already ships it natively, and it's a developer loop. Build order renumbered (section 8); milestone numbers in older entries above refer to the old order.
+- 2026-10-12 — Grok and ChatGPT join v1 as hub-run agents. Both vendors' chat completions APIs are OpenAI-compatible with JSON-schema structured outputs (checked docs.x.ai), so one small fetch client serves both. Defaults `grok-4.7` and `gpt-5`, set by `XAI_MODEL` / `OPENAI_MODEL`.
+- 2026-10-12 — Planner tokens: hosted by default (the hub's own Claude key), bring-your-own-key optional later. In the MVP every key comes from `.env`; a missing key means a labelled stand-in, so the whole thing runs with no keys.
+- 2026-10-12 — The Planner now takes over a thread from the chat: it hands the task on to the agents the chat named (a new `delegate` adapter event, which needs the Planner's own line to each), and closes the thread when every task it handed out has a result back (a `complete` event). A new task on a done thread reopens it.
+- 2026-10-12 — Connector security for the MVP is a long secret token in the URL (`/mcp/<token>`, `/board/<token>`), not OAuth. Claude's custom connectors accept authless servers; OAuth (with Dynamic Client Registration, which Claude requires) comes before anyone but Ben uses it. The Claude app needs a public https address, so a free Cloudflare quick tunnel is the testing route.
+- 2026-10-12 — The board is one static page served by the hub (no Next.js / React Flow yet) with a server-sent event stream from the event log. It keeps the approved mockup's look. It's read-only: questions are answered from the chat (`answer_question`) until milestone 5. Plain `node:http` server, no web framework.
+- 2026-10-12 — Board look: "the web" (mockup: https://claude.ai/artifact/GABMNtAZVrkCJcKgmqr8AQ). Ben first picked "The Exchange" (a telephone switchboard) from three directions, then asked for something cleaner and modern but not generic AI SaaS: a spiderweb he can reroute. The Planner sits at the centre of faint rings; agents are round vendor-coloured nodes on them; lines are curved strands labelled with what crosses. Milestone 3 ships it view-only (drag to arrange, click to inspect). In milestone 6: drag a dot from one agent onto another to draw a line, drag a line's end to reroute it, and set types, scope and approval in the side panel.
+- 2026-10-12 — Ben chose "notes and nudges" for talking to an agent from the board (over full chat or watch-only): from an agent's panel he can add context, redirect, or answer in a line; it goes into the shared thread. Principle 9 (no chat app) stands. Built with the full canvas (milestone 6).
+- 2026-10-12 — Connector tool `approve`/`deny` waits for the Approval entity (milestone 5); `answer_question` answers escalations now. Per-chat "last seen" markers are keyed by the chat app's name (e.g. `claude-ai`, `claude-code`), so reconnecting doesn't replay old news.
 
 ---
 
-## 13. Launch plan (after milestone 8)
+## 13. Launch plan (after milestone 6)
 
-1. Use it daily with the developer for 2+ weeks (milestone 9 in practice).
+1. Use it daily with someone Ben works with for 2+ weeks (milestone 7 in practice).
 2. Record a 60-second demo: plan in Claude → Cursor builds it → zero copy-paste → board shows the exchange. Landing page + waitlist.
 3. List in the official MCP registry, other MCP directories, Cursor's directory.
 4. Post the demo: r/ClaudeAI, r/cursor, Cursor forum, X, LinkedIn; Show HN once solid.

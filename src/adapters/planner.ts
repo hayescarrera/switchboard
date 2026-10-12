@@ -1,5 +1,9 @@
 // The hub's own Claude agent: the planner (CLAUDE.md section 6.3, item 1).
 //
+// It takes over a thread once the user's chat hands it off: it passes the task
+// on to the agents the chat picked, answers their questions, and marks the
+// thread done when every one of them has reported back.
+//
 // It holds no state of its own. Every time another agent asks it something, it
 // reads the live thread (goal, plan, decisions, constraints, the user's earlier
 // answers, recent messages) and either answers or escalates to the user. It
@@ -51,9 +55,14 @@ export class PlannerAdapter implements Adapter {
 
   async send(thread: Thread, delivery: Delivery): Promise<RunRef> {
     const externalRef = `planner-${randomUUID()}`;
-    // Only questions need the planner to act. Status, results and answers sent
-    // to it are already on the thread, which is all the planner reads.
-    const work = delivery.type === "question" ? this.handleQuestion(thread.id, delivery) : Promise.resolve([]);
+    // Questions get answered (or escalated); a task from the user's chat is
+    // handed on to the agents it names; a result may finish the thread. Status
+    // and answers sent to it are already on the thread, which is all it reads.
+    const work =
+      delivery.type === "question" ? this.handleQuestion(thread.id, delivery)
+      : delivery.type === "task" ? Promise.resolve(this.handOn(delivery))
+      : delivery.type === "result" ? this.checkFinished(thread.id, delivery)
+      : Promise.resolve([]);
     this.runs.set(externalRef, { work, cancelled: false });
     return { externalRef };
   }
@@ -74,6 +83,24 @@ export class PlannerAdapter implements Adapter {
   async cancel(ref: RunRef): Promise<void> {
     const run = this.runs.get(ref.externalRef);
     if (run) run.cancelled = true;
+  }
+
+  /** Pass the task on to each agent the chat picked. The router checks the planner's line to each. */
+  private handOn(delivery: Delivery): AdapterEvent[] {
+    return (delivery.routeTo ?? []).map((to) => ({ kind: "delegate", to, body: delivery.body }));
+  }
+
+  /** The thread is done once every task the planner handed out has a result back. */
+  private async checkFinished(threadId: string, delivery: Delivery): Promise<AdapterEvent[]> {
+    const { rows } = await this.db.query<{ tasks: number; results: number }>(
+      `SELECT count(*) FILTER (WHERE from_agent = $2 AND type = 'task')::int AS tasks,
+              count(*) FILTER (WHERE to_agent = $2 AND type = 'result')::int AS results
+       FROM messages WHERE thread_id = $1`,
+      [threadId, delivery.toAgentId],
+    );
+    const { tasks, results } = rows[0];
+    if (tasks === 0 || results < tasks) return [];
+    return [{ kind: "complete", body: `Every agent reported back (${results} of ${tasks}).` }];
   }
 
   private async handleQuestion(threadId: string, delivery: Delivery): Promise<AdapterEvent[]> {

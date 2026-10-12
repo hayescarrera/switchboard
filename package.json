@@ -2,7 +2,7 @@
   "name": "switchboard",
   "version": "0.1.0",
   "private": true,
-  "description": "Personal agent-to-agent layer. Milestone 2: hub Claude agent.",
+  "description": "Personal agent-to-agent layer. Chat to chat: MCP connector, hub-run agents, live board.",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -10,13 +10,16 @@
     "migrate": "tsx src/db/migrate.ts",
     "test": "vitest run",
     "demo": "tsx src/demo.ts",
-    "demo:planner": "tsx src/demo-planner.ts"
+    "demo:planner": "tsx src/demo-planner.ts",
+    "hub": "tsx src/main.ts",
+    "demo:chat": "tsx src/demo-chat.ts"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "pg": "^8.23.1",
     "zod": "^4.6.7"
   },

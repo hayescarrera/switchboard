@@ -11,6 +11,8 @@ export interface Delivery {
   context: ThreadContext;
   fromAgentId: string;
   toAgentId: string;
+  /** For a task: which agents the sender wants the work handed on to (agent ids). */
+  routeTo?: string[];
 }
 
 /** The adapter's handle on the work it started (e.g. a Cursor agent id). */
@@ -25,7 +27,11 @@ export type AdapterEvent =
   | { kind: "result"; body: string }
   | { kind: "error"; body: string }
   /** The agent can't go on without the user. `body` is the question for them; `summary` says why. */
-  | { kind: "escalate"; body: string; summary: string };
+  | { kind: "escalate"; body: string; summary: string }
+  /** Hand work on: the agent sends `body` as a new task to agent `to`, over its own line. */
+  | { kind: "delegate"; to: string; body: string }
+  /** The thread's work is finished. `body` says how, in a line. */
+  | { kind: "complete"; body: string };
 
 export interface Adapter {
   describe(): AgentCard;
