@@ -308,6 +308,9 @@ Append here when a decision is made or the spec changes. Newest at the bottom.
 - 2026-10-12 — `start_thread` rejects thin handoffs. New metric: self-answered rate.
 - 2026-10-12 — Cross-person lines need acceptance by both owners and are revocable by either (the handshake, milestone 9).
 - 2026-10-12 — No stale state: added `catch_up` tool, a "since you last checked" digest on every tool response, and a per-chat last-seen marker, so the user's own chat knows what other agents did (e.g. the ticket is closed).
+- 2026-10-12 — Milestone 1 built. Lines are one-way for starting work: a line from A to B lets A send anything the line allows, and lets B reply along it (question, answer, status, result) but not send B's own `task`. Two-way work needs a line each way.
+- 2026-10-12 — Milestone 1 uses plain SQL with the `pg` driver (no ORM) and local Postgres via Docker; tests run against a real Postgres. No HTTP API yet: nothing calls the hub from outside until the MCP connector (milestone 5) and the board (milestone 4).
+- 2026-10-12 — Escalations in milestone 1 set the thread to `waiting_on_user` and write an `escalation.raised` event. The Approval entity and notifications arrive in milestone 7.
 
 ---
 
