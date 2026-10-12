@@ -209,6 +209,7 @@ A **remote MCP server** (Streamable HTTP + OAuth) that users add to their chat a
 - **Waiting on you:** approvals + escalations, newest first.
 - **Thread view:** the full conversation between agents with links to jump into each app.
 - Works on phone and laptop. Phone priority: waiting-on-you and approve/deny.
+- **Agent panel:** click an agent to see what it's working on now, and send it a note or nudge (add context, redirect it, answer it in a line). Notes land in the shared thread so every agent sees them. It is not a chat window (principle 9).
 - Visual direction: clean, product-style, Figma-like canvas. Not a developer console. Not a chat UI.
 - The board is built in two stages: a read-only live view early (milestone 3, built), then the full editable canvas (milestone 6).
 
@@ -330,6 +331,7 @@ Append here when a decision is made or the spec changes. Newest at the bottom.
 - 2026-10-12 — Connector security for the MVP is a long secret token in the URL (`/mcp/<token>`, `/board/<token>`), not OAuth. Claude's custom connectors accept authless servers; OAuth (with Dynamic Client Registration, which Claude requires) comes before anyone but Ben uses it. The Claude app needs a public https address, so a free Cloudflare quick tunnel is the testing route.
 - 2026-10-12 — The board is one static page served by the hub (no Next.js / React Flow yet) with a server-sent event stream from the event log. It keeps the approved mockup's look. It's read-only: questions are answered from the chat (`answer_question`) until milestone 5. Plain `node:http` server, no web framework.
 - 2026-10-12 — Board look: "the web" (mockup: https://claude.ai/artifact/GABMNtAZVrkCJcKgmqr8AQ). Ben first picked "The Exchange" (a telephone switchboard) from three directions, then asked for something cleaner and modern but not generic AI SaaS: a spiderweb he can reroute. The Planner sits at the centre of faint rings; agents are round vendor-coloured nodes on them; lines are curved strands labelled with what crosses. Milestone 3 ships it view-only (drag to arrange, click to inspect). In milestone 6: drag a dot from one agent onto another to draw a line, drag a line's end to reroute it, and set types, scope and approval in the side panel.
+- 2026-10-12 — Ben chose "notes and nudges" for talking to an agent from the board (over full chat or watch-only): from an agent's panel he can add context, redirect, or answer in a line; it goes into the shared thread. Principle 9 (no chat app) stands. Built with the full canvas (milestone 6).
 - 2026-10-12 — Connector tool `approve`/`deny` waits for the Approval entity (milestone 5); `answer_question` answers escalations now. Per-chat "last seen" markers are keyed by the chat app's name (e.g. `claude-ai`, `claude-code`), so reconnecting doesn't replay old news.
 
 ---
