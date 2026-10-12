@@ -1,6 +1,6 @@
--- Switchboard hub, milestone 1 schema.
--- Mirrors CLAUDE.md section 6.1 for: users, agents, lines, threads, messages, runs, events.
--- Approvals arrive in milestone 7.
+-- Switchboard hub schema.
+-- Mirrors CLAUDE.md section 6.1 for: users, agents, lines, threads, messages, runs, events,
+-- plus escalations (milestone 2). Approvals arrive in milestone 7.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -95,6 +95,24 @@ CREATE TABLE IF NOT EXISTS runs (
   created_at        timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS runs_running_idx ON runs (state) WHERE state = 'running';
+
+-- Things the hub needs the user for: the escalation half of the "waiting on you" list.
+-- Raised by the planner when it is unsure, by the loop guard, and by stalled runs.
+CREATE TABLE IF NOT EXISTS escalations (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_id    uuid NOT NULL REFERENCES threads(id),
+  run_id       uuid REFERENCES runs(id),          -- the run waiting on the answer, if any
+  agent_id     uuid REFERENCES agents(id),        -- who raised it, if an agent did
+  reason       text NOT NULL,                     -- planner_unsure, loop_guard, run_timed_out, ...
+  summary      text NOT NULL,                     -- one line for the user: what happened
+  question     text,                              -- what the user is asked to answer
+  status       text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'answered')),
+  answer       text,
+  answered_by  uuid REFERENCES users(id),
+  answered_at  timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS escalations_open_idx ON escalations (thread_id) WHERE status = 'open';
 
 -- Append-only log of every message, action and permission check.
 CREATE TABLE IF NOT EXISTS events (

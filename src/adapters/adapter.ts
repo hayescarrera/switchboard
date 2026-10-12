@@ -23,7 +23,9 @@ export type AdapterEvent =
   | { kind: "question"; body: string }
   | { kind: "answer"; body: string }
   | { kind: "result"; body: string }
-  | { kind: "error"; body: string };
+  | { kind: "error"; body: string }
+  /** The agent can't go on without the user. `body` is the question for them; `summary` says why. */
+  | { kind: "escalate"; body: string; summary: string };
 
 export interface Adapter {
   describe(): AgentCard;

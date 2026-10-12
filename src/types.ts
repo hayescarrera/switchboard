@@ -91,6 +91,21 @@ export interface Run {
   nudged_at: Date | null;
 }
 
+export interface Escalation {
+  id: string;
+  thread_id: string;
+  run_id: string | null;
+  agent_id: string | null;
+  reason: string;
+  summary: string;
+  question: string | null;
+  status: "open" | "answered";
+  answer: string | null;
+  answered_by: string | null;
+  answered_at: Date | null;
+  created_at: Date;
+}
+
 export interface HubEvent {
   id: string;
   at: Date;
