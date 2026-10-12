@@ -5,279 +5,403 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Switchboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Text:wght@600;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Overpass+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
 <style>
-/* The live, read-only board, in "The Exchange" direction Ben picked: an old
-   telephone switchboard. Agents are jacks with name plates, lines are patch
-   cords, a message glows along its cord, and a lamp turns amber when an agent
-   is waiting on you. One deliberate look (enamel panel, brass, ivory plates)
-   in both themes. Everything comes from the hub's event log. */
+/* The live board, in the "web" direction Ben picked: the Planner sits at the
+   centre of a faint web and your agents sit around it, joined by curved
+   strands. A dot travels a strand for each message; a ring breathes amber
+   when an agent is waiting on you. Agents can be dragged (the layout is kept
+   in this browser). Changing lines comes with the full canvas (milestone 6),
+   so for now clicking a line shows what crosses it. Everything comes from
+   the hub's event log. */
 :root{
-  --room:#0a2422; --panel:#0f3a37; --panel-in:#114440; --seam:#0b2e2b; --well:#0c302d;
-  --ivory:#e9dfc4; --ivory-ink:#1a2a28; --ivory-muted:#566260; --text:#efe4c6; --text-muted:#9fc4bd;
-  --brass:#c9a24a; --brass-dark:#8d6f2a; --hole:#0b1f1e; --lamp-off:#24504c;
-  --talk:#7fe0a0; --wait:#ffb43a; --problem:#ff7a6b;
-  --f-plate:"Big Shoulders Text",Impact,"Arial Narrow",sans-serif;
-  --f-ui:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --f-log:"Overpass Mono",ui-monospace,Menlo,Consolas,monospace;
-  color-scheme:dark;
+  --bg:#f4f5f7; --surface:#fff; --ink:#15171c; --muted:#646b78; --line:#e6e8ec;
+  --web:#eceef1; --strand:#a9b0bd;
+  --accent:#2453ff; --accent-soft:#eaeeff; --wait:#d9600f; --wait-soft:#fdf0e6; --ok:#12865a; --ok-soft:#e5f4ec; --bad:#c8392b;
+  --v-anthropic:#c96442; --v-xai:#15171c; --v-xai-ink:#fff; --v-openai:#10a37f; --v-other:#6b7280; --v-person:#7c5ce6;
+  --f-ui:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Geist Mono",ui-monospace,Menlo,monospace;
+  --shadow:0 0 0 1px rgba(20,24,32,.04),0 1px 2px rgba(20,24,32,.05),0 8px 24px -8px rgba(20,24,32,.08);
+  color-scheme:light;
 }
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1014; --surface:#16191f; --ink:#eceef2; --muted:#98a0ad; --line:#252932;
+  --web:#1e2229; --strand:#4f5868;
+  --accent:#7590ff; --accent-soft:#1c2340; --wait:#ff944d; --wait-soft:#33231a; --ok:#3fcf8e; --ok-soft:#15291f; --bad:#ff7a6b;
+  --v-anthropic:#e08a68; --v-xai:#eceef2; --v-xai-ink:#15171c; --v-openai:#2fc79c; --v-other:#8b93a1; --v-person:#a68bff;
+  --shadow:0 0 0 1px rgba(255,255,255,.04),0 8px 24px -8px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1014; --surface:#16191f; --ink:#eceef2; --muted:#98a0ad; --line:#252932;
+  --web:#1e2229; --strand:#4f5868;
+  --accent:#7590ff; --accent-soft:#1c2340; --wait:#ff944d; --wait-soft:#33231a; --ok:#3fcf8e; --ok-soft:#15291f; --bad:#ff7a6b;
+  --v-anthropic:#e08a68; --v-xai:#eceef2; --v-xai-ink:#15171c; --v-openai:#2fc79c; --v-other:#8b93a1; --v-person:#a68bff;
+  --shadow:0 0 0 1px rgba(255,255,255,.04),0 8px 24px -8px rgba(0,0,0,.5); color-scheme:dark}
 *{box-sizing:border-box}
-html,body{background:var(--room)}
-body{margin:0;color:var(--text);font:15px/1.45 var(--f-ui);padding:0 16px;padding-block:16px 28px}
-.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;max-width:1240px;margin:0 auto 14px}
-.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-.brand b{font:800 26px var(--f-plate);letter-spacing:.06em;text-transform:uppercase}
-.brand span{font:500 12px var(--f-log);color:var(--text-muted)}
-.live{font:500 12px var(--f-log);color:var(--text-muted);display:flex;align-items:center;gap:8px}
-.live i{width:9px;height:9px;border-radius:50%;background:var(--lamp-off);display:inline-block}
-.live.on i{background:var(--talk);box-shadow:0 0 8px var(--talk)}
-.wrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;max-width:1240px;margin:0 auto}
-/* On a phone: what's waiting on you first, then the board, then the thread. */
-@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}.rail{display:contents}#waitCard{order:-1}}
-.board{background:var(--panel);border-radius:12px;overflow:hidden;min-width:0}
-.board svg{display:block;width:100%;height:auto}
-.rail{display:flex;flex-direction:column;gap:16px;min-width:0}
-.card{background:var(--panel);border-radius:12px;padding:16px;min-width:0}
-.card h2{font:800 14px var(--f-plate);letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;gap:8px}
-.count{font:800 14px var(--f-plate);color:var(--room);background:var(--lamp-off);border-radius:999px;min-width:24px;padding:1px 8px;text-align:center}
-.count.on{background:var(--wait)}
-.empty{font-size:14px;color:var(--text-muted);margin:0}
-.ask{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--seam)}
-.ask:first-of-type{border-top:0;padding-top:0}
-.ask .lamp{flex:none;width:14px;height:14px;border-radius:50%;background:var(--wait);box-shadow:0 0 10px var(--wait);margin-top:4px;animation:pulse 1.2s ease-in-out infinite}
-.ask div{min-width:0}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--ink);font:14.5px/1.5 var(--f-ui);padding:16px 16px 28px;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+
+.top{max-width:1240px;margin:0 auto 16px;display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:24px;height:24px;flex:none}
+.brand b{font-size:17px;font-weight:650;letter-spacing:-.015em}
+.brand span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{display:flex;align-items:center;gap:18px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.meta b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.live{display:inline-flex;align-items:center;gap:7px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--strand)}
+.live.on i{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+
+.wrap{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+/* On a phone: what's waiting on you comes first, then the web. */
+@media (max-width:920px){.wrap{grid-template-columns:minmax(0,1fr)}.side{display:contents}#waitCard.has{order:-1}#inspector.idle{display:none}}
+
+.canvas{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);position:relative;min-width:0;overflow:hidden;touch-action:none}
+.canvas svg{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none}
+.toolbar{position:absolute;left:12px;bottom:12px;display:flex;gap:8px}
+.chip{font-size:13px;font-weight:500;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.chip:hover{border-color:var(--strand)}
+@media (max-width:600px){.toolbar{position:static;padding:0 12px 12px}}
+
+.panel{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:16px;min-width:0}
+.panel h2{margin:0 0 12px;font-size:12.5px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.badge{font-size:12px;font-weight:600;background:var(--wait);color:#fff;border-radius:999px;min-width:20px;padding:0 7px;text-align:center}
+.empty{color:var(--muted);margin:0}
+
+.ask{background:var(--wait-soft);border-radius:10px;padding:12px 14px}
+.ask + .ask{margin-top:8px}
 .ask p{margin:0 0 4px;font-weight:600;overflow-wrap:anywhere}
-.ask small{display:block;color:var(--text-muted);font-size:13px}
-.card select{font:13px var(--f-ui);color:var(--ivory-ink);background:var(--ivory);border:0;border-radius:4px;padding:3px 6px;max-width:180px;text-transform:none;letter-spacing:0}
-.feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;max-height:420px;overflow:auto}
-.feed li{font-size:14px;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap}
-.feed .who{font:500 11.5px var(--f-log);color:var(--text-muted);display:block;white-space:normal;margin-bottom:2px}
-.tag{display:inline-block;font:800 11px var(--f-plate);letter-spacing:.08em;text-transform:uppercase;padding:1px 7px;border-radius:3px;margin-left:6px;white-space:nowrap;vertical-align:1px}
-.tag.self{background:var(--talk);color:var(--room)}
-.tag.you{background:var(--wait);color:var(--room)}
-.meters{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.meters div{background:var(--well);border-radius:8px;padding:10px 12px}
-.meters b{display:block;font:800 30px var(--f-plate);font-variant-numeric:tabular-nums;color:var(--ivory)}
-.meters span{font-size:12.5px;color:var(--text-muted)}
-.note{max-width:1240px;margin:14px auto 0;font-size:12.5px;color:var(--text-muted)}
-:focus-visible{outline:2px solid var(--wait);outline-offset:2px}
-@keyframes pulse{50%{opacity:.45}}
+.ask small{display:block;color:var(--muted);font-size:13px}
+
+.sel-title{font-size:16px;font-weight:600;margin:0 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sel-sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.group{margin-bottom:14px}
+.group:last-child{margin-bottom:0}
+.group h3{font-size:12px;font-weight:500;color:var(--muted);margin:0 0 8px}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:12.5px;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:3px 9px;background:var(--bg)}
+.tag.on{background:var(--accent-soft);border-color:transparent;color:var(--ink)}
+button.tag{cursor:pointer}
+button.tag:hover{border-color:var(--strand)}
+.later{font-size:12.5px;color:var(--muted);margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.pill{font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--line);color:var(--muted)}
+.pill.working{background:var(--accent-soft);color:var(--accent)}
+.pill.waiting{background:var(--wait-soft);color:var(--wait)}
+.pill.done{background:var(--ok-soft);color:var(--ok)}
+
+.feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.feed li{display:grid;grid-template-columns:8px minmax(0,1fr);gap:10px;align-items:start;overflow-wrap:anywhere}
+.feed .dot{width:7px;height:7px;border-radius:50%;margin-top:8px;background:var(--strand)}
+.feed .dot.self{background:var(--ok)} .feed .dot.you{background:var(--wait)} .feed .dot.msg{background:var(--accent)}
+.feed small{display:block;color:var(--muted);font-size:12px}
+.convo{max-height:440px;overflow:auto}
+.convo .who{font:500 11.5px var(--f-mono);color:var(--muted);display:block;margin-bottom:1px}
+.convo .body{white-space:pre-wrap}
+.flag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:0 8px;margin-left:6px;white-space:nowrap}
+.flag.self{background:var(--ok-soft);color:var(--ok)}
+.flag.you{background:var(--wait-soft);color:var(--wait)}
+select{font:13px var(--f-ui);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:3px 6px;max-width:190px}
+
+.note{max-width:1240px;margin:14px auto 0;font-size:12.5px;color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
 /* svg */
-.plate{fill:var(--ivory)}
-.plate-t{font:800 15px var(--f-plate);fill:var(--ivory-ink);letter-spacing:.06em;text-transform:uppercase}
-.plate-s{font:600 11px var(--f-plate);fill:var(--ivory-muted);letter-spacing:.08em;text-transform:uppercase}
-.plate-st{font:600 11px var(--f-log);fill:var(--ivory-muted)}
-.plate-st.working{fill:#2f7a4c} .plate-st.waiting{fill:#b86a00} .plate-st.problem{fill:#b3392c}
-.log-k{font:600 12px var(--f-plate);fill:var(--text-muted);letter-spacing:.14em;text-transform:uppercase}
-.log-t{font:500 13px var(--f-log);fill:var(--text)}
-.waitlbl{font:800 13px var(--f-plate);fill:var(--wait);letter-spacing:.1em;text-transform:uppercase}
-@media (prefers-reduced-motion:reduce){.mover{display:none}.ask .lamp{animation:none}}
+.ring{fill:none;stroke:var(--web);stroke-width:1}
+.spoke{stroke:var(--web);stroke-width:1}
+.strand{fill:none;stroke:var(--strand);stroke-width:2.5;stroke-linecap:round;transition:stroke .2s}
+.strand.cross{stroke:var(--v-person);stroke-dasharray:7 6}
+.strand.off{stroke-dasharray:2 6;opacity:.7}
+.strand.hot,.strand.sel{stroke:var(--accent)}
+.strand.sel{stroke-width:3.5}
+.hit{fill:none;stroke:transparent;stroke-width:22;cursor:pointer;outline:none}
+.lbl{font:500 11px var(--f-mono);fill:var(--muted);text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:5px;stroke-linejoin:round}
+.node{cursor:grab;outline:none}
+.node:active{cursor:grabbing}
+.node .disc{stroke:var(--surface);stroke-width:3}
+.node .mono{font-weight:650;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.node .nm{font-size:13.5px;font-weight:600;fill:var(--ink);text-anchor:middle;pointer-events:none}
+.node .st{font-size:12px;fill:var(--muted);text-anchor:middle;pointer-events:none}
+.node .st.working{fill:var(--accent)} .node .st.waiting{fill:var(--wait)} .node .st.done{fill:var(--ok)} .node .st.problem{fill:var(--bad)}
+.node .halo{fill:none;stroke:var(--accent);stroke-width:2;opacity:0}
+.node.sel .halo,.node:focus-visible .halo{opacity:1}
+.node .waitring{fill:none;stroke:var(--wait);stroke-width:3;opacity:0}
+.node.waiting .waitring{animation:breathe 1.4s ease-in-out infinite}
+.node .spin{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:4 7;opacity:0}
+.node.working .spin{opacity:.7;animation:turn 6s linear infinite}
+.pulse{fill:var(--accent);stroke:var(--surface);stroke-width:2.5}
+@keyframes breathe{0%,100%{opacity:.25}50%{opacity:.95}}
+@keyframes turn{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.pulse{display:none}.node.waiting .waitring{animation:none;opacity:.8}.node.working .spin{animation:none}}
 </style>
 </head>
 <body>
 <div class="top">
-  <div class="brand"><b>Switchboard</b><span id="who">Your exchange</span></div>
-  <span class="live" id="live"><i></i><span>connecting</span></span>
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="var(--strand)" stroke-width="1.4"/><path d="M12 12 L12 3.5 M12 12 L19.4 16.2 M12 12 L4.6 16.2" stroke="var(--strand)" stroke-width="1.4"/><circle cx="12" cy="12" r="3.4" fill="var(--accent)"/><circle cx="12" cy="3.5" r="2.2" fill="var(--ink)"/><circle cx="19.4" cy="16.2" r="2.2" fill="var(--ink)"/><circle cx="4.6" cy="16.2" r="2.2" fill="var(--ink)"/></svg>
+    <b>Switchboard</b><span id="who"></span>
+  </div>
+  <div class="meta">
+    <span><b id="sSelf">0</b> answered without you</span>
+    <span><b id="sYou">0</b> needed you</span>
+    <span class="live" id="live"><i></i><span>Connecting</span></span>
+  </div>
 </div>
 
 <div class="wrap">
-  <div class="board">
-    <svg id="svg" viewBox="0 0 640 430" role="img" aria-label="Your agents as jacks on a switchboard, joined by patch cords"></svg>
+  <div class="canvas">
+    <svg id="svg" viewBox="-400 -255 800 490" role="img" aria-label="Your agents in a web around the Planner, joined by the lines that let them talk">
+      <g id="web"></g><g id="strands"></g><g id="labels"></g><g id="nodes"></g>
+      <circle id="pulse" class="pulse" r="6" cx="-999" cy="-999"/>
+    </svg>
+    <div class="toolbar"><button class="chip" id="tidy" type="button">Tidy up</button></div>
   </div>
 
-  <div class="rail">
-    <div class="card" id="waitCard">
-      <h2><span>Waiting on you</span><span class="count" id="waitCount">0</span></h2>
+  <div class="side">
+    <div class="panel" id="waitCard">
+      <h2><span>Waiting on you</span><span class="badge" id="waitCount" hidden>0</span></h2>
       <div id="waiting"><p class="empty">Nothing needs you right now.</p></div>
     </div>
-    <div class="card">
-      <h2><span>Thread</span><select id="threadPick" aria-label="Pick a thread"></select></h2>
-      <ul class="feed" id="feed"><li class="empty">No threads yet. Start one from your Claude chat.</li></ul>
+    <div class="panel" id="inspector"></div>
+    <div class="panel">
+      <h2><span>Happening now</span></h2>
+      <ul class="feed" id="happening"><li class="empty">Quiet. Hand something off from your Claude chat.</li></ul>
     </div>
-    <div class="card meters">
-      <div><b id="sSelf">0</b><span>answered without you</span></div>
-      <div><b id="sYou">0</b><span>times you were needed</span></div>
+    <div class="panel">
+      <h2><span>Thread</span><select id="threadPick" aria-label="Pick a thread" hidden></select></h2>
+      <ul class="feed convo" id="convo"><li class="empty">No threads yet. Start one from your Claude chat.</li></ul>
     </div>
   </div>
 </div>
-<p class="note">Read-only for now: answer what's waiting on you from your Claude chat ("what's waiting on me?"). Plugging in new cords comes with the full canvas.</p>
+<p class="note">Answer what's waiting on you from your Claude chat: ask it "what's waiting on me?". Drawing and changing lines here comes with the full canvas.</p>
 
 <script>
+(() => {
 const base = location.pathname.replace(/\/$/, "");
-const NS = "http://www.w3.org/2000/svg";
+const NS = "http://www.w3.org/2000/svg", $ = (id) => document.getElementById(id);
 const el = (t, a = {}, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
-const $ = (id) => document.getElementById(id);
-const CORDS = ["#d8442f", "#e8c341", "#3f8fd8", "#4fb37a", "#e57a2e", "#c9c3b3"];
-const W = 640, LAMP_Y = 70, PLATE_Y = 96, PLATE_H = 52, JACK_Y = 172, LOG_H = 112;
-let state = null, picked = null, shape = "", cords = {}, jacks = {}, logLines = [];
+const h = (t, cls, text) => { const e = document.createElement(t); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const svg = $("svg");
+const TYPES = { task: "Tasks", question: "Questions", answer: "Answers", status: "Updates", result: "Results" };
+const SCOPE = { summary: "Summary", plan: "Plan", decisions: "Decisions", constraints: "Constraints", open_questions: "Open questions", links: "Files & links", user_answers: "Your answers" };
+const RINGS = [110, 200, 290], ORBIT = 200, BOUND = [370, 215];
+
+let state = null, picked = null, shape = "", sel = null, pos = {}, home = {}, strandEls = {};
+
+// The web behind everything: three rings and twelve spokes.
+for (const r of RINGS) el("circle", { r, class: "ring" }, $("web"));
+for (let i = 0; i < 12; i++) { const t = i * Math.PI / 6; el("line", { x2: Math.cos(t) * RINGS[2], y2: Math.sin(t) * RINGS[2], class: "spoke" }, $("web")); }
+
+const saved = (() => { try { return JSON.parse(localStorage.getItem("sb-layout") || "{}"); } catch { return {}; } })();
+const save = () => { try { localStorage.setItem("sb-layout", JSON.stringify(pos)); } catch {} };
+
+/** The Planner sits in the middle; chats sit on top; everyone else spreads round the lower arc. */
+function layout() {
+  const chats = state.agents.filter((a) => a.column === 0), others = state.agents.filter((a) => a.column === 2);
+  home = {};
+  for (const a of state.agents) if (a.column === 1) home[a.id] = [0, 0];
+  const place = (list, from, to) => list.forEach((a, i) => {
+    const t = (from + (to - from) * (list.length === 1 ? .5 : i / (list.length - 1))) * Math.PI / 180;
+    home[a.id] = [Math.round(Math.cos(t) * ORBIT * 1.15), Math.round(Math.sin(t) * ORBIT)];
+  });
+  place(chats, chats.length > 1 ? -125 : -90, chats.length > 1 ? -55 : -90);
+  others.length <= 2 ? place(others, 30, 150) : place(others, -20, 200);
+  pos = {};
+  for (const a of state.agents) pos[a.id] = saved[a.id] ? [...saved[a.id]] : [...home[a.id]];
+}
+
+const agent = (id) => state.agents.find((a) => a.id === id);
+const radius = (a) => (a.column === 1 ? 32 : 25);
+function looks(a) {
+  if (a.column === 1) return { fill: "var(--accent)", ink: "#fff", mono: "P" };
+  const fill = { anthropic: "var(--v-anthropic)", xai: "var(--v-xai)", openai: "var(--v-openai)" }[a.vendor] ?? "var(--v-other)";
+  const ink = a.vendor === "xai" ? "var(--v-xai-ink)" : "#fff";
+  const word = a.name.replace(/^(your|my)\s+/i, "");
+  const mono = a.vendor === "openai" ? "GPT" : word.slice(0, 1).toUpperCase();
+  return { fill, ink, mono };
+}
+const lineLabel = (l) => (!l.enabled ? "paused" : l.label);
+
+function strandPath(l) {
+  const [x1, y1] = pos[l.from], [x2, y2] = pos[l.to];
+  const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, bow = Math.min(36, len * .12);
+  const cx = (x1 + x2) / 2 - dy / len * bow, cy = (y1 + y2) / 2 + dx / len * bow;
+  return { d: `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`, mid: [(x1 + 2 * cx + x2) / 4, (y1 + 2 * cy + y2) / 4] };
+}
 
 function draw() {
-  const svg = $("svg"); svg.replaceChildren();
-  const agents = [...state.agents].sort((a, b) => a.column - b.column);
-  const n = Math.max(agents.length, 1);
-  const margin = n > 4 ? 64 : 92, step = n > 1 ? (W - 2 * margin) / (n - 1) : 0;
-  const plateW = Math.min(140, Math.max(80, step - 14));
-  const x = {}; agents.forEach((a, i) => { x[a.id] = n > 1 ? margin + i * step : W / 2; });
-
-  // How far each cord sags: longer cords hang lower, so they don't sit on top of each other.
-  const span = (l) => Math.abs(x[l.to] - x[l.from]);
-  const maxSag = 130, sags = state.lines.map((l) => Math.min(maxSag, 34 + span(l) * 0.32));
-  const panelH = JACK_Y + 26 + Math.max(60, ...sags) + 24;
-  const H = panelH + 16 + LOG_H + 14;
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-
-  el("rect", { x: 0, y: 0, width: W, height: H, fill: "var(--panel)" }, svg);
-  el("rect", { x: 14, y: 14, width: W - 28, height: panelH - 14, rx: 6, fill: "var(--panel-in)", stroke: "var(--seam)", "stroke-width": 2 }, svg);
-  for (const [sx, sy] of [[26, 26], [W - 26, 26], [26, panelH - 12], [W - 26, panelH - 12]]) el("circle", { cx: sx, cy: sy, r: 4, fill: "var(--brass)", opacity: .7 }, svg);
-
-  const cordG = el("g", {}, svg), jackG = el("g", {}, svg);
-  cords = {};
-  state.lines.forEach((l, i) => {
-    if (x[l.from] == null || x[l.to] == null) return;
-    const col = CORDS[i % CORDS.length], y = JACK_Y + 12;
-    const x1 = x[l.from] + (x[l.to] > x[l.from] ? 6 : -6), x2 = x[l.to] + (x[l.to] > x[l.from] ? -6 : 6), sag = sags[i];
-    const d = `M${x1},${y} C${x1},${y + sag} ${x2},${y + sag} ${x2},${y}`;
-    el("path", { d, fill: "none", stroke: "#0a2523", "stroke-width": 9, "stroke-linecap": "round", opacity: .5, transform: "translate(2,4)" }, cordG);
-    const p = el("path", { d, fill: "none", stroke: col, "stroke-width": 7, "stroke-linecap": "round", opacity: l.enabled ? 1 : .35, "stroke-dasharray": l.enabled ? "0" : "10 8" }, cordG);
-    el("path", { d, fill: "none", stroke: "#fff", "stroke-width": 1.2, opacity: .16, "stroke-dasharray": "2 5" }, cordG);
-    for (const px of [x1, x2]) el("rect", { x: px - 5, y: y - 8, width: 10, height: 14, rx: 2, fill: "#2b2b2b", stroke: col, "stroke-width": 2 }, cordG);
-    // What crosses the cord shows on hover; printed labels collide once cords cross.
-    el("title", {}, p).textContent = `${l.label}${l.enabled ? "" : " (switched off)"}`;
-    cords[l.id] = { path: p, line: l, col };
-  });
-
-  jacks = {};
-  for (const a of agents) {
-    const cx = x[a.id];
-    const glow = el("circle", { cx, cy: LAMP_Y, r: 20, fill: "var(--wait)", opacity: 0 }, jackG);
-    const lamp = el("circle", { cx, cy: LAMP_Y, r: 10, fill: "var(--lamp-off)", stroke: "#0a2523", "stroke-width": 2 }, jackG);
-    const waitLbl = el("text", { x: cx, y: LAMP_Y - 26, class: "waitlbl", "text-anchor": "middle", opacity: 0 }, jackG);
-    waitLbl.textContent = "Waiting on you";
-    el("rect", { x: cx - plateW / 2, y: PLATE_Y, width: plateW, height: PLATE_H, rx: 3, class: "plate" }, jackG);
-    el("text", { x: cx, y: PLATE_Y + 18, class: "plate-t", "text-anchor": "middle" }, jackG).textContent = fit(a.name, plateW, 7.2);
-    const sub = a.model && a.model !== "claude" ? `${a.sub} · ${a.model}` : a.sub;
-    el("text", { x: cx, y: PLATE_Y + 32, class: "plate-s", "text-anchor": "middle" }, jackG).textContent = fit(sub, plateW, 5.6);
-    const st = el("text", { x: cx, y: PLATE_Y + 46, class: "plate-st", "text-anchor": "middle" }, jackG);
-    el("circle", { cx, cy: JACK_Y, r: 13, fill: "var(--brass)", stroke: "var(--brass-dark)", "stroke-width": 2 }, jackG);
-    el("circle", { cx, cy: JACK_Y, r: 5.5, fill: "var(--hole)" }, jackG);
-    jacks[a.id] = { lamp, glow, waitLbl, st };
+  const sg = $("strands"), lg = $("labels"), ng = $("nodes");
+  sg.replaceChildren(); lg.replaceChildren(); ng.replaceChildren(); strandEls = {};
+  for (const l of state.lines) {
+    if (!pos[l.from] || !pos[l.to]) continue;
+    const { d, mid } = strandPath(l);
+    const cls = "strand" + (l.crossPerson ? " cross" : "") + (l.enabled ? "" : " off") + (sel?.line === l.id ? " sel" : "");
+    strandEls[l.id] = el("path", { d, class: cls }, sg);
+    const hit = el("path", { d, class: "hit", tabindex: 0, role: "button", "aria-label": `Line from ${agent(l.from).name} to ${agent(l.to).name}` }, sg);
+    hit.addEventListener("click", (e) => { e.stopPropagation(); select({ line: l.id }); });
+    hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select({ line: l.id }); } });
+    el("text", { x: mid[0], y: mid[1] - 7, class: "lbl" }, lg).textContent = lineLabel(l);
   }
-
-  // The operator's log: the last few things that happened.
-  const ly = panelH + 16;
-  el("rect", { x: 14, y: ly, width: W - 28, height: LOG_H, rx: 6, fill: "var(--well)" }, svg);
-  el("text", { x: 30, y: ly + 26, class: "log-k" }, svg).textContent = "Operator log";
-  logLines = [0, 1, 2].map((i) => el("text", { x: 30, y: ly + 54 + i * 22, class: "log-t", opacity: 1 - i * .3 }, svg));
-  el("circle", { id: "mover", class: "mover", r: 7, fill: "#fff", "stroke-width": 3, cx: -20, cy: -20 }, svg);
-  renderLog();
-}
-
-/** Plates are narrow; trim long names instead of letting them run off. */
-function fit(text, width, perChar) {
-  const max = Math.floor((width - 12) / perChar);
-  return text.length > max ? text.slice(0, max - 1) + "…" : text;
-}
-
-function drawStatus() {
   for (const a of state.agents) {
-    const j = jacks[a.id]; if (!j) continue;
-    const lit = { working: "var(--talk)", waiting: "var(--wait)", done: "#3f7d63" }[a.status] ?? (a.statusText === "hit a problem" ? "var(--problem)" : "var(--lamp-off)");
-    j.lamp.setAttribute("fill", lit);
-    j.lamp.style.filter = a.status === "working" ? "drop-shadow(0 0 6px #7fe0a0)" : "";
-    j.glow.setAttribute("opacity", a.status === "waiting" ? .3 : 0);
-    j.glow.style.animation = a.status === "waiting" ? "pulse 1.2s ease-in-out infinite" : "";
-    j.waitLbl.setAttribute("opacity", a.status === "waiting" ? 1 : 0);
-    j.st.textContent = a.statusText;
-    j.st.setAttribute("class", "plate-st " + (a.statusText === "hit a problem" ? "problem" : a.status));
+    const [x, y] = pos[a.id], r = radius(a), lk = looks(a);
+    const g = el("g", { class: `node ${a.status}${sel?.node === a.id ? " sel" : ""}`, transform: `translate(${x},${y})`, tabindex: 0, role: "button", "aria-label": `${a.name}, ${a.statusText}` }, ng);
+    el("circle", { r: r + 9, class: "waitring" }, g);
+    el("circle", { r: r + 6, class: "spin" }, g);
+    el("circle", { r: r + 5, class: "halo" }, g);
+    el("circle", { r, class: "disc", fill: lk.fill }, g);
+    el("text", { class: "mono", style: `fill:${lk.ink};font-size:${lk.mono.length > 1 ? 11.5 : 15}px` }, g).textContent = lk.mono;
+    el("text", { y: r + 19, class: "nm" }, g).textContent = a.name;
+    el("text", { y: r + 35, class: `st ${a.statusText === "hit a problem" ? "problem" : a.status}` }, g).textContent = a.statusText;
+    g.addEventListener("pointerdown", (e) => startDrag(e, a.id));
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select({ node: a.id }); } });
   }
+  inspect();
 }
 
-let logBuf = [];
-function renderLog() { logLines.forEach((t, i) => { t.textContent = logBuf[i] ? (i === 0 ? "▸ " : "  ") + clip(logBuf[i], 66) : (i === 0 && !logBuf.length ? "Quiet. Hand something off from your Claude chat." : ""); }); }
-const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
-function pushLog(text) { logBuf.unshift(text); logBuf.length = Math.min(logBuf.length, 3); renderLog(); }
+function point(e) { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return [q.x, q.y]; }
+const clamp = (v, m) => Math.max(-m, Math.min(m, v));
+function startDrag(e, id) {
+  e.stopPropagation();
+  const [sx, sy] = point(e), [ox, oy] = pos[id]; let moved = false;
+  const move = (ev) => {
+    const [x, y] = point(ev);
+    if (!moved && Math.hypot(x - sx, y - sy) < 4) return;
+    moved = true; const [bx, by] = narrow.matches ? [250, 200] : BOUND;
+    pos[id] = [Math.round(clamp(ox + x - sx, bx)), Math.round(clamp(oy + y - sy, by))]; draw();
+  };
+  const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); if (moved) save(); else select({ node: id }); };
+  addEventListener("pointermove", move); addEventListener("pointerup", up);
+}
+svg.addEventListener("pointerdown", (e) => { if (e.target === svg || e.target.closest("#web")) select(null); });
+$("tidy").onclick = () => { for (const k in saved) delete saved[k]; pos = {}; for (const a of state.agents) pos[a.id] = [...home[a.id]]; save(); draw(); };
 
-function drawRail() {
+function select(s) { sel = s; draw(); }
+
+/** The side panel: what a selected agent or line does. Read-only until the full canvas. */
+function inspect() {
+  const box = $("inspector"); box.replaceChildren(h("h2", null, "Selected"));
+  const a = sel?.node && agent(sel.node), l = sel?.line && state.lines.find((x) => x.id === sel.line);
+  box.classList.toggle("idle", !a && !l);
+  if (!a && !l) { box.appendChild(h("p", "empty", "Click an agent or a line to see what it does.")); return; }
+  if (a) {
+    const t = h("p", "sel-title", a.name);
+    t.appendChild(h("span", `pill ${a.status}`, a.statusText));
+    box.append(t, h("p", "sel-sub", a.model && a.column !== 0 ? `${a.sub} · runs on ${a.model}` : a.sub));
+    const mine = state.lines.filter((x) => x.from === a.id || x.to === a.id);
+    const g = h("div", "group"); g.appendChild(h("h3", null, mine.length === 1 ? "1 line" : `${mine.length} lines`));
+    const tags = h("div", "tags");
+    for (const x of mine) {
+      const b = h("button", "tag", `${x.from === a.id ? "to" : "from"} ${agent(x.from === a.id ? x.to : x.from).name}`);
+      b.type = "button"; b.onclick = () => select({ line: x.id }); tags.appendChild(b);
+    }
+    if (!mine.length) tags.appendChild(h("p", "empty", "No lines yet."));
+    g.appendChild(tags); box.appendChild(g);
+    return;
+  }
+  box.append(h("p", "sel-title", `${agent(l.from).name} → ${agent(l.to).name}`),
+    h("p", "sel-sub", !l.enabled ? "Paused. Nothing crosses it right now."
+      : l.crossPerson ? "Crosses to another person. Both of you set what's allowed."
+      : `${agent(l.from).name} can hand work to ${agent(l.to).name}, and ${agent(l.to).name} can reply along it.`));
+  const group = (title, all, on) => {
+    const g = h("div", "group"); g.appendChild(h("h3", null, title));
+    const tags = h("div", "tags");
+    for (const [k, label] of Object.entries(all)) tags.appendChild(h("span", "tag" + (on.includes(k) ? " on" : ""), label));
+    g.appendChild(tags); box.appendChild(g);
+  };
+  group("What can travel along it", TYPES, l.types);
+  group("What context goes with it", SCOPE, l.scope);
+  box.appendChild(h("p", "later", "Changing what crosses a line, and asking you before anything is sent, come with the full canvas."));
+}
+
+function drawSide() {
   const w = $("waiting"); w.replaceChildren();
-  $("waitCount").textContent = state.waiting.length;
-  $("waitCount").classList.toggle("on", state.waiting.length > 0);
-  if (!state.waiting.length) { const p = document.createElement("p"); p.className = "empty"; p.textContent = "Nothing needs you right now."; w.appendChild(p); }
+  $("waitCount").textContent = state.waiting.length; $("waitCount").hidden = !state.waiting.length;
+  $("waitCard").classList.toggle("has", state.waiting.length > 0);
+  if (!state.waiting.length) w.appendChild(h("p", "empty", "Nothing needs you right now."));
   for (const q of state.waiting) {
-    const d = document.createElement("div"); d.className = "ask";
-    const lamp = document.createElement("span"); lamp.className = "lamp";
-    const body = document.createElement("div");
-    const p = document.createElement("p"); p.textContent = q.question;
-    const s = document.createElement("small"); s.textContent = `${q.thread} · ${q.summary} Answer it in your Claude chat.`;
-    body.append(p, s); d.append(lamp, body); w.appendChild(d);
+    const d = h("div", "ask"); d.append(h("p", null, q.question), h("small", null, `${q.thread}. Answer it in your Claude chat.`)); w.appendChild(d);
   }
-  const sel = $("threadPick"); sel.replaceChildren();
+  const pick = $("threadPick"); pick.replaceChildren();
   for (const t of state.threads) {
-    const o = document.createElement("option"); o.value = t.id;
-    o.textContent = t.title + (t.status === "done" ? " (done)" : t.status === "waiting_on_user" ? " (needs you)" : "");
-    if (state.thread && t.id === state.thread.id) o.selected = true; sel.appendChild(o);
+    const o = h("option", null, t.title + (t.status === "done" ? " (done)" : t.status === "waiting_on_user" ? " (needs you)" : ""));
+    o.value = t.id; o.selected = state.thread?.id === t.id; pick.appendChild(o);
   }
-  sel.hidden = state.threads.length === 0;
-  const feed = $("feed"); feed.replaceChildren();
-  if (!state.thread) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "No threads yet. Start one from your Claude chat."; feed.appendChild(li); }
+  pick.hidden = !state.threads.length;
+  const convo = $("convo"); convo.replaceChildren();
+  if (!state.thread) convo.appendChild(h("li", "empty", "No threads yet. Start one from your Claude chat."));
   else for (const m of state.thread.feed) {
-    const li = document.createElement("li");
-    const who = document.createElement("span"); who.className = "who"; who.textContent = `${m.from} → ${m.to} · ${m.type}`;
-    li.append(who, document.createTextNode(m.body));
-    if (m.tag) { const t = document.createElement("span"); t.className = "tag " + m.tag; t.textContent = m.tag === "self" ? "answered without you" : "your answer"; li.appendChild(t); }
-    feed.appendChild(li);
+    const li = h("li"), dot = h("span", "dot " + (m.tag ?? "msg")), d = h("div");
+    d.append(h("span", "who", `${m.from} → ${m.to} · ${m.type}`), h("span", "body", m.body));
+    if (m.tag) d.appendChild(h("span", "flag " + m.tag, m.tag === "self" ? "answered without you" : "your answer"));
+    li.append(dot, d); convo.appendChild(li);
   }
-  feed.scrollTop = feed.scrollHeight;
+  convo.scrollTop = convo.scrollHeight;
   $("sSelf").textContent = state.stats.answeredWithoutYou;
   $("sYou").textContent = state.stats.youWereNeeded;
-  $("who").textContent = `${state.owner}'s exchange${state.thread ? " · " + state.thread.title : ""}`;
+  $("who").textContent = `${state.owner}'s web`;
 }
 
 async function refresh() {
   const res = await fetch(`${base}/state${picked ? "?thread=" + encodeURIComponent(picked) : ""}`);
   if (!res.ok) return;
   state = await res.json();
-  const s = JSON.stringify([state.agents.map((a) => [a.id, a.name, a.sub, a.column, a.model]), state.lines]);
-  if (s !== shape) { shape = s; draw(); }
-  drawStatus(); drawRail();
+  const s = JSON.stringify(state.agents.map((a) => [a.id, a.column]));
+  if (s !== shape) { shape = s; layout(); }
+  if (sel && !(sel.node ? agent(sel.node) : state.lines.some((l) => l.id === sel.line))) sel = null;
+  draw(); drawSide();
 }
 $("threadPick").onchange = (e) => { picked = e.target.value; refresh(); };
 
-// A glow runs along the cord for each message, one at a time.
-const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const queue = []; let running = false;
-function travel(lineId, reverse) { queue.push([lineId, reverse]); if (!running) next(); }
+// Happening now: the last few things the hub did, newest first.
+const seen = [];
+function happened(text, kind) {
+  const list = $("happening");
+  if (!seen.length) list.replaceChildren();
+  seen.unshift(text);
+  const li = h("li"), d = h("div", null, text.length > 150 ? text.slice(0, 149) + "…" : text);
+  d.appendChild(h("small", null, new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })));
+  li.append(h("span", "dot " + kind), d); list.prepend(li);
+  while (list.children.length > 6) list.lastChild.remove();
+}
+
+// A dot travels the strand for each message, one at a time.
+const queue = []; let flying = false;
+function fly(lineId, reverse) { if (reduce) return; queue.push([lineId, reverse]); if (!flying) next(); }
 function next() {
-  const item = queue.shift(); if (!item) { running = false; return; }
-  const c = cords[item[0]], mover = document.getElementById("mover");
-  if (!c || !mover || reduce) { next(); return; }
-  running = true;
-  const p = c.path, L = p.getTotalLength(), t0 = performance.now(), dur = queue.length > 3 ? 450 : 1100;
-  mover.setAttribute("stroke", c.col);
-  const f = (now) => {
+  const item = queue.shift(); if (!item) { flying = false; return; }
+  const p = strandEls[item[0]]; if (!p) { next(); return; }
+  flying = true;
+  const len = p.getTotalLength(), t0 = performance.now(), dur = queue.length > 2 ? 500 : 1000, dot = $("pulse");
+  p.classList.add("hot");
+  const step = (now) => {
     let u = Math.min(1, (now - t0) / dur); u = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
-    const pt = p.getPointAtLength((item[1] ? 1 - u : u) * L); mover.setAttribute("cx", pt.x); mover.setAttribute("cy", pt.y);
-    if (u < 1) requestAnimationFrame(f); else { mover.setAttribute("cx", -20); next(); }
+    const q = p.getPointAtLength((item[1] ? 1 - u : u) * len); dot.setAttribute("cx", q.x); dot.setAttribute("cy", q.y);
+    if (u < 1) requestAnimationFrame(step); else { dot.setAttribute("cx", -999); p.classList.remove("hot"); next(); }
   };
-  requestAnimationFrame(f);
+  requestAnimationFrame(step);
 }
 
 let refreshTimer = null;
 function connect() {
-  const es = new EventSource(`${base}/events`);
-  es.onopen = () => { $("live").className = "live on"; $("live").lastChild.textContent = "line open"; refresh(); };
-  es.onerror = () => { $("live").className = "live"; $("live").lastChild.textContent = "reconnecting"; };
+  const es = new EventSource(`${base}/events`), live = $("live");
+  es.onopen = () => { live.className = "live on"; live.lastChild.textContent = "Live"; refresh(); };
+  es.onerror = () => { live.className = "live"; live.lastChild.textContent = "Reconnecting"; };
   es.onmessage = (e) => {
-    const h = JSON.parse(e.data);
-    pushLog(h.text.replace(/\s*\[question id [^\]]+\]/, ""));
-    if (h.kind === "message.delivered" && h.lineId && cords[h.lineId] && state) {
-      const toAgent = state.agents.find((a) => a.id === cords[h.lineId].line.to);
-      travel(h.lineId, toAgent && h.from === toAgent.name);
-    }
+    const ev = JSON.parse(e.data);
+    const text = ev.text.replace(/\s*\[question id [^\]]+\]/, "");
+    happened(text, /without you/i.test(text) ? "self" : /waiting on you|you answered|your answer/i.test(text) ? "you" : ev.kind === "thread.done" ? "self" : ev.kind === "message.delivered" ? "msg" : "");
+    const l = ev.lineId && state?.lines.find((x) => x.id === ev.lineId);
+    if (ev.kind === "message.delivered" && l) fly(l.id, ev.from === agent(l.to)?.name);
   };
   es.addEventListener("tick", () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 150); });
 }
+// On a phone the web is cropped closer, so names stay readable.
+const narrow = matchMedia("(max-width: 600px)");
+const fitView = () => svg.setAttribute("viewBox", narrow.matches ? "-290 -250 580 460" : "-400 -255 800 490");
+narrow.addEventListener("change", fitView); fitView();
 refresh(); connect();
+})();
 </script>
 </body>
 </html>

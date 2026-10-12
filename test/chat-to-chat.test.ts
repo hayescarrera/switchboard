@@ -247,7 +247,7 @@ describe("the hub's web endpoints", () => {
 
     const state = await (await fetch(url(`/board/${TOKEN}/state`))).json();
     expect(state.agents.map((a: { name: string }) => a.name)).toEqual(["Your Claude chat", "Planner", "Grok", "ChatGPT"]);
-    expect(state.lines.map((l: { label: string }) => l.label)).toEqual(["whole handoff", "task · question · result", "task · question · result"]);
+    expect(state.lines.map((l: { label: string }) => l.label)).toEqual(["whole handoff", "everything", "everything"]);
     expect(state.agents.find((a: { name: string }) => a.name === "Planner").status).toBe("waiting");
     expect(state.waiting[0]).toMatchObject({ thread: "Launch brief", question: "Should the brief be one page or two?" });
     expect(state.thread.feed.map((m: { type: string }) => m.type)).toEqual(["task", "task", "question"]);

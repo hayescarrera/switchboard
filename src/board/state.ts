@@ -2,14 +2,14 @@
 // agent's status, the waiting-on-you list, one thread's conversation, and the
 // self-answered numbers. All of it read live from the hub's tables.
 
-import type { Hub } from "../hub.js";
+import { HANDOFF_FIELDS, type Hub } from "../hub.js";
 import { openEscalations } from "../store.js";
 import type { Line, Message, Thread } from "../types.js";
 
 export interface BoardState {
   owner: string;
-  agents: { id: string; name: string; sub: string; column: number; model: string | null; status: "idle" | "working" | "waiting" | "done"; statusText: string }[];
-  lines: { id: string; from: string; to: string; label: string; enabled: boolean }[];
+  agents: { id: string; name: string; sub: string; vendor: string; column: number; model: string | null; status: "idle" | "working" | "waiting" | "done"; statusText: string }[];
+  lines: { id: string; from: string; to: string; label: string; enabled: boolean; types: string[]; scope: string[]; crossPerson: boolean }[];
   threads: { id: string; title: string; status: Thread["status"] }[];
   thread: { id: string; title: string; status: Thread["status"]; feed: { from: string; to: string; type: string; body: string; tag: "self" | "you" | null }[] } | null;
   waiting: { id: string; thread: string; question: string; summary: string }[];
@@ -66,14 +66,16 @@ export async function boardState(hub: Hub, threadId?: string): Promise<BoardStat
     owner: hub.user.name,
     agents: agents.map((a) => {
       const [st, text] = status(a.id);
-      return { id: a.id, name: a.name, sub: a.card?.description ?? a.vendor, column: column(a),
+      return { id: a.id, name: a.name, sub: a.card?.description ?? a.vendor, vendor: a.vendor, column: column(a),
         model: hub.modelLabels[a.id] ?? null, status: st, statusText: text };
     }),
     lines: lines.map((l) => ({
       id: l.id, from: l.from_node, to: l.to_node, enabled: l.enabled && l.accepted === l.owners,
-      // What starts and comes back along it; answers and status updates always ride along.
+      types: l.allowed_types, scope: l.context_scope, crossPerson: l.owners > 1,
+      // How much of the thread's context crosses it, in a few words for the strand.
       label: l.from_node === hub.chat.id ? "whole handoff"
-        : l.allowed_types.filter((t) => t === "task" || t === "question" || t === "result").join(" · "),
+        : l.context_scope.length >= HANDOFF_FIELDS.length ? "everything"
+        : `${l.context_scope.length} of ${HANDOFF_FIELDS.length} shared`,
     })),
     threads: threads.map((t) => ({ id: t.id, title: t.title, status: t.status })),
     thread: selected ? { id: selected.id, title: selected.title, status: selected.status, feed } : null,
