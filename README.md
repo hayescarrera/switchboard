@@ -27,8 +27,9 @@ from the thread, asks you when it isn't sure, and remembers your answer next tim
 - **Your chat stays current.** Every connector response ends with what changed since that
   chat last checked, and `catch_up` gives the full picture, so Claude doesn't talk about
   work as if nothing happened since the handoff.
-- **The live board.** A page for laptop or phone that shows your agents, the lines between
-  them, messages moving along the lines as they happen, what's waiting on you, and how many
+- **The live board.** A switchboard for laptop or phone: your agents are jacks, the lines
+  between them are patch cords, and a lamp turns amber when one is waiting on you. It shows
+  messages moving along the cords as they happen, what's waiting on you, and how many
   questions were answered without you. Read-only for now.
 
 Connector tools: `list_agents`, `start_thread`, `send_message`, `get_thread`, `catch_up`,
