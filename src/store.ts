@@ -7,6 +7,7 @@ import {
   type Agent,
   type AgentCard,
   type AgentKind,
+  type Escalation,
   type Line,
   type Message,
   type MessageType,
@@ -140,5 +141,15 @@ export async function messagesForThread(db: Db, threadId: string): Promise<Messa
 
 export async function runsForThread(db: Db, threadId: string): Promise<Run[]> {
   const { rows } = await db.query(`SELECT * FROM runs WHERE thread_id = $1 ORDER BY created_at`, [threadId]);
+  return rows;
+}
+
+/** The escalation half of the user's waiting-on-you list, newest first. */
+export async function openEscalations(db: Db, threadId?: string): Promise<Escalation[]> {
+  const { rows } = await db.query(
+    `SELECT * FROM escalations WHERE status = 'open' AND ($1::uuid IS NULL OR thread_id = $1)
+     ORDER BY created_at DESC`,
+    [threadId ?? null],
+  );
   return rows;
 }

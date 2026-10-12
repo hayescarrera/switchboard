@@ -2,20 +2,23 @@
   "name": "switchboard",
   "version": "0.1.0",
   "private": true,
-  "description": "Personal agent-to-agent layer. Milestone 1: hub skeleton.",
+  "description": "Personal agent-to-agent layer. Milestone 2: hub Claude agent.",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx src/db/migrate.ts",
     "test": "vitest run",
-    "demo": "tsx src/demo.ts"
+    "demo": "tsx src/demo.ts",
+    "demo:planner": "tsx src/demo-planner.ts"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "pg": "^8.23.1"
+    "@anthropic-ai/sdk": "^0.133.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

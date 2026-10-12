@@ -17,7 +17,7 @@ export function testPool(): Db {
 /** Wipe every table. TRUNCATE skips the events table's no-delete trigger on purpose. */
 export async function resetDb(db: Db): Promise<void> {
   await db.query(
-    `TRUNCATE events, runs, messages, threads, line_owners, lines, agents, users RESTART IDENTITY CASCADE`,
+    `TRUNCATE events, escalations, runs, messages, threads, line_owners, lines, agents, users RESTART IDENTITY CASCADE`,
   );
 }
 
@@ -54,3 +54,5 @@ export async function world(db: Db, opts: { context?: ThreadContext; maxMessages
   });
   return { clock, adapters, router, ben, a, b, thread, agent };
 }
+
+export { ScriptedAdapter } from "../src/adapters/scripted.js";

@@ -12,6 +12,12 @@
 // Replies travel back along the line the original message came in on, so a
 // line from A to B also lets B answer, ask a question back, report status and
 // send a result to A. Only A can start new work (`task`) over it.
+//
+// When an agent can't go on without the user (the planner is unsure, the loop
+// guard trips, a run stalls), the thread is escalated: paused, with an open
+// escalation on the user's waiting-on-you list. `answerEscalation` writes the
+// user's answer into the thread's shared context, resumes the thread, and sends
+// the answer to whoever was waiting on it.
 
 import type pg from "pg";
 import type { Adapter, AdapterEvent, RunRef } from "./adapters/adapter.js";
@@ -20,6 +26,7 @@ import { logEvent } from "./events.js";
 import {
   REPLY_TYPES,
   type Agent,
+  type Escalation,
   type Line,
   type Message,
   type MessageType,
@@ -65,7 +72,7 @@ export interface RouterOptions {
   nudgeText?: string;
 }
 
-const EVENT_TO_MESSAGE: Record<Exclude<AdapterEvent["kind"], "error">, MessageType> = {
+const EVENT_TO_MESSAGE: Record<Exclude<AdapterEvent["kind"], "error" | "escalate">, MessageType> = {
   progress: "status",
   question: "question",
   answer: "answer",
@@ -76,6 +83,12 @@ class Denied extends Error {
   constructor(readonly reason: DenyReason, readonly detail: string) {
     super(detail);
   }
+}
+
+export interface AnswerEscalationInput {
+  escalationId: string;
+  userId: string;
+  answer: string;
 }
 
 export class Router {
@@ -113,8 +126,11 @@ export class Router {
   async checkTimeouts(): Promise<void> {
     const now = this.clock();
     const { rows } = await this.db.query<Run & { adapter: string }>(
-      `SELECT r.*, a.adapter FROM runs r JOIN agents a ON a.id = r.agent_id
+      `SELECT r.*, a.adapter FROM runs r
+         JOIN agents a ON a.id = r.agent_id
+         JOIN threads t ON t.id = r.thread_id
        WHERE r.state = 'running'
+         AND t.status = 'active'   -- a paused thread is waiting on the user, not on its agents
          AND r.last_event_at + make_interval(secs => r.timeout_seconds) <= $1`,
       [now],
     );
@@ -140,9 +156,74 @@ export class Router {
         data: { timeout_seconds: run.timeout_seconds, nudged_at: run.nudged_at },
       });
       await adapter?.cancel(ref);
-      await this.escalate(this.db, run.thread_id, "run_timed_out",
-        "An agent stopped responding, even after a nudge.", { run_id: run.id });
+      await this.escalate(this.db, {
+        threadId: run.thread_id, reason: "run_timed_out",
+        summary: "An agent stopped responding, even after a nudge.", runId: run.id, agentId: run.agent_id,
+      });
     }
+  }
+
+  /**
+   * The user answers an escalation. The answer is written into the thread's
+   * shared context (so the planner never asks it again), the thread resumes, and
+   * if a run was waiting on it, the answer goes to whoever asked, from the agent
+   * that escalated, along the same line.
+   */
+  async answerEscalation(input: AnswerEscalationInput): Promise<SendResult | null> {
+    const at = this.clock();
+    const client = await this.db.connect();
+    let esc: Escalation;
+    try {
+      await client.query("BEGIN");
+      const found = await client.query<Escalation>(
+        `SELECT * FROM escalations WHERE id = $1 FOR UPDATE`, [input.escalationId]);
+      esc = found.rows[0];
+      if (!esc) throw new Error(`No escalation ${input.escalationId}`);
+      if (esc.status !== "open") throw new Error("That escalation has already been answered");
+      const thread = await lockThread(client, esc.thread_id);
+
+      await client.query(
+        `UPDATE escalations SET status = 'answered', answer = $2, answered_by = $3, answered_at = $4 WHERE id = $1`,
+        [esc.id, input.answer, input.userId, at],
+      );
+      const userAnswers = [...(thread.context.user_answers ?? []),
+        { question: esc.question ?? esc.summary, answer: input.answer }];
+      await client.query(
+        `UPDATE threads SET context = context || jsonb_build_object('user_answers', $2::jsonb) WHERE id = $1`,
+        [thread.id, JSON.stringify(userAnswers)],
+      );
+      const ids = { threadId: thread.id, runId: esc.run_id };
+      await logEvent(client, {
+        kind: "escalation.answered", at, ...ids,
+        data: { escalation_id: esc.id, user_id: input.userId, question: esc.question, answer: input.answer },
+      });
+      await logEvent(client, { kind: "context.updated", at, ...ids, data: { field: "user_answers", added: 1 } });
+
+      // Resume once nothing else on the thread is waiting on the user.
+      const stillOpen = await client.query(
+        `SELECT 1 FROM escalations WHERE thread_id = $1 AND status = 'open'`, [thread.id]);
+      if (stillOpen.rowCount === 0) {
+        await client.query(`UPDATE threads SET status = 'active', status_reason = NULL WHERE id = $1`, [thread.id]);
+        // Time spent waiting on the user doesn't count against the agents' timeouts.
+        await client.query(
+          `UPDATE runs SET last_event_at = $2 WHERE thread_id = $1 AND state = 'running'`, [thread.id, at]);
+        await logEvent(client, { kind: "thread.resumed", at, threadId: thread.id });
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    if (!esc.run_id) return null;
+    const { rows } = await this.db.query<Run>(`SELECT * FROM runs WHERE id = $1`, [esc.run_id]);
+    const run = rows[0];
+    return this.deliver(
+      { threadId: run.thread_id, from: run.agent_id, to: run.requester_id, type: "answer", body: input.answer },
+      run,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -220,8 +301,10 @@ export class Router {
         kind: "loop_guard.tripped", at, ...ids,
         data: { message_count: thread.message_count, max_messages: thread.max_messages },
       });
-      await this.escalate(client, thread.id, "loop_guard",
-        `This thread reached its limit of ${thread.max_messages} messages, so it was paused.`, {});
+      await this.escalate(client, {
+        threadId: thread.id, reason: "loop_guard",
+        summary: `This thread reached its limit of ${thread.max_messages} messages, so it was paused.`,
+      });
       throw new Denied("loop_guard", `Thread hit its ${thread.max_messages}-message limit and is paused.`);
     }
 
@@ -343,6 +426,13 @@ export class Router {
       if (live.rowCount === 0) return; // stopped (timed out or cancelled) while we waited
       await logEvent(this.db, { kind: "run.event", at: now, ...ids, data: { kind: event.kind, body: event.body } });
 
+      if (event.kind === "escalate") {
+        await this.escalate(this.db, {
+          threadId: run.thread_id, reason: "agent_unsure", summary: event.summary,
+          question: event.body, runId: run.id, agentId: run.agent_id,
+        });
+        continue;
+      }
       if (event.kind === "error") {
         await this.db.query(`UPDATE runs SET state = 'error' WHERE id = $1`, [run.id]);
         await logEvent(this.db, { kind: "run.error", at: now, ...ids, data: { error: event.body } });
@@ -364,16 +454,22 @@ export class Router {
   /** Pause the thread and put it on the user's waiting-on-you list. */
   private async escalate(
     db: Pick<pg.Pool, "query"> | pg.PoolClient,
-    threadId: string,
-    reason: string,
-    summary: string,
-    data: Record<string, unknown>,
+    e: { threadId: string; reason: string; summary: string; question?: string; runId?: string; agentId?: string },
   ): Promise<void> {
+    const { rows } = await db.query<{ id: string }>(
+      `INSERT INTO escalations (thread_id, run_id, agent_id, reason, summary, question)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [e.threadId, e.runId ?? null, e.agentId ?? null, e.reason, e.summary, e.question ?? null],
+    );
     await db.query(
       `UPDATE threads SET status = 'waiting_on_user', status_reason = $2 WHERE id = $1`,
-      [threadId, reason],
+      [e.threadId, e.reason],
     );
-    await logEvent(db, { kind: "escalation.raised", at: this.clock(), threadId, data: { reason, summary, ...data } });
+    await logEvent(db, {
+      kind: "escalation.raised", at: this.clock(), threadId: e.threadId, agentId: e.agentId, runId: e.runId,
+      data: { escalation_id: rows[0].id, reason: e.reason, summary: e.summary, question: e.question ?? null,
+        run_id: e.runId ?? null },
+    });
   }
 }
 

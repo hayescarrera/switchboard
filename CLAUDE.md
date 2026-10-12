@@ -311,6 +311,10 @@ Append here when a decision is made or the spec changes. Newest at the bottom.
 - 2026-10-12 — Milestone 1 built. Lines are one-way for starting work: a line from A to B lets A send anything the line allows, and lets B reply along it (question, answer, status, result) but not send B's own `task`. Two-way work needs a line each way.
 - 2026-10-12 — Milestone 1 uses plain SQL with the `pg` driver (no ORM) and local Postgres via Docker; tests run against a real Postgres. No HTTP API yet: nothing calls the hub from outside until the MCP connector (milestone 5) and the board (milestone 4).
 - 2026-10-12 — Escalations in milestone 1 set the thread to `waiting_on_user` and write an `escalation.raised` event. The Approval entity and notifications arrive in milestone 7.
+- 2026-10-12 — Milestone 2 built. Added an **Escalation** entity (thread, the run waiting on it, reason, question, answer, answered_by): the escalation half of the waiting-on-you list. Every escalation (planner unsure, loop guard, stalled run) creates one. Answering it writes `{question, answer}` into the thread's `user_answers`, resumes the thread, and sends the answer to the agent that asked, along the same line, from the agent that escalated.
+- 2026-10-12 — The planner reads the whole live thread context, not the line-scoped copy: it is the hub's own agent holding the user's thread. Line scopes still govern what crosses to other agents.
+- 2026-10-12 — The planner escalates when its model says to, when its confidence is below 0.7, or when the model call fails, so the asking agent never gets a guess or silence. Claude API via the Anthropic TypeScript SDK (not the Agent SDK: one structured call per question is enough), model `claude-opus-5-5` with server-side refusal fallback, overridable with `PLANNER_MODEL`.
+- 2026-10-12 — Run timeouts skip threads that are waiting on the user, and resuming a thread resets the timeout clock on its open runs.
 
 ---
 
