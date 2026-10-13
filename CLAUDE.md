@@ -1,45 +1,40 @@
 # CLAUDE.md — Switchboard (working name)
 
-Read this whole file before writing any code. It is the single source of truth for what we are building, why, and in what order. If something here conflicts with a later instruction from Ben, Ben wins. Then update this file so the next session knows.
+Read this whole file before writing any code. It is the single source of truth for what we are building, why, for whom, and in what order. If something here conflicts with a later instruction from Ben, Ben wins — then update this file so the next session knows.
 
 ---
 
 ## 1. The one-paragraph version
 
-People now work across many AI agents: Claude, Grok, ChatGPT, Rovo, Cursor, and whatever comes next. The agents do the work, but the human is still the **meat proxy**. The human copies context out of one agent and pastes it into another, re-explains, and babysits a new chat in every app. Worse, the human has to **remember**: remember to go take the output from one agent to the next, remember what's waiting, remember who needs what. The agents sit idle waiting on the human. Switchboard is the **personal agent-to-agent layer** that takes the human out of the middle. Your agents message each other directly, act on those messages on their own, ask each other follow-up questions, chase each other when something is waiting, and only pull you in to approve or to resolve something they can't. On top sits a **canvas** where you design the web of how you work: agents and chats are boxes, and the lines between them say who can talk to whom and what context crosses.
+Teams now work across several AI tools at once — one person thinks in Claude, another in ChatGPT, the developer builds in Cursor or VS Code. The humans have become the **meat proxy**: copying AI output out of one tool, pasting it to a coworker, who pastes it into *their* AI, re-explains, and passes it on again. Switchboard is the **shared working layer between people and their agents**. One thread holds a piece of work; several people and several agents (whatever tool each person prefers) work in it together; when it's ready, it hands off to the coding agent with everything already in it. Agents can message each other and act on their own, but a human approves anything that matters. On top sits a **canvas** where the team designs how its agents connect: agents and chats are boxes, and the lines between them say who can talk to whom and what context crosses.
 
-**Mission:** your agents talk to each other, so you don't have to be the go-between, or even remember to be.
+**Mission:** your agents talk to each other, so you don't have to be the go-between.
 
-**Why now, and why us:** Companies won't open their agents to each other. Google, Microsoft, Anthropic, xAI, Atlassian and others are slow to make agent-to-agent (A2A) work across vendors, and inside a company there's a long authorization fight before anyone's agents can talk. But when *you* install Switchboard, you are the one authorizing it. These are your agents, acting for you, with your accounts. Personal consent is the unlock the companies can't give themselves. We build the adapters so agents behave as if they already speak A2A, today.
-
-**Analogy:** Plaid. Banks dragged their feet on open APIs; Plaid built the connections itself, on the user's authorization, and became the layer everyone used.
+**Analogy:** Plaid. Banks dragged their feet on open APIs; Plaid built the connections itself and became the layer everyone used. AI vendors each make their *own* tools collaborative but won't bridge to each other. We build the bridges so people and agents across tools work as one team, today.
 
 ---
 
 ## 2. Who it's for
 
-- **First user: Ben.** Technical but not a software engineer. Thinks visually, Figma-style. Uses several AI tools day to day (Claude, Grok, Rovo and others; not much Cursor personally, though his team uses it). Has agents and chats everywhere, loses track of them, and spends his day remembering to move things between them and copy-pasting. Approves everything before it goes out; doesn't trust blind sends yet.
-- **Second user: someone Ben works with** (e.g. his developer). Receives work from Ben's agents into his own. Proves the cross-person loop, which is the part companies can't do for themselves.
-- **Then:** individuals and small teams (2–30 people), technical and non-technical, who use 3+ AI tools. Individuals spread it (free tier); teams pay (per seat).
-
-Not for: enterprises buying an agent governance platform (Salesforce Agent Fabric, Kong, cloud registries own that).
+- **Primary customer: lean teams (3–30 people) that run on AI instead of headcount.** Small companies and startups where people use different AI tools, the developer works in Cursor/VS Code, and a founder or CTO can say yes on the spot.
+- **Validation signal:** Ben's CTO, unprompted: "I'm copying stuff and asking my agent about it, you're asking yours — what an interesting time." That is the exact pain, described by a technical decision-maker at a lean team.
+- **Builder/first user: Ben.** Technical but not a software engineer. Thinks visually, Figma-style. Uses Claude for ideas and planning, Cursor/VS Code-side work goes through a developer. Approves everything before it goes out.
+- **Ben cannot pilot this at his day job** (not senior enough to roll it out). Plan: Ben uses it on his own work; the CTO is a sounding board; recruit 3–5 outside lean teams as design partners.
+- Not for: enterprises buying an agent governance platform (Salesforce Agent Fabric, Kong, cloud registries own that); individuals at $20/month as the core business (see section 13).
 
 ---
 
 ## 3. Product principles (do not violate these)
 
-1. **One conversation, many workers.** The user talks in one place. The next agent builds off the whole conversation the user just had. No new chat per app, no re-typing.
-2. **Nobody has to remember.** If work is waiting on an agent, the agents chase it, not the user. The hub follows up, routes results to the next agent, and keeps a single "waiting on you" list for the few things that truly need the user.
-3. **Personal authorization.** The user owns their agents. Connecting an agent and drawing a line *is* the consent for those agents to talk. We act on the user's behalf, within the lines they drew, and nothing more.
-4. **The user designs the web.** The canvas is where they connect agents, chats and channels and draw lines between them. Each line = permission + what context crosses.
-5. **Adding a tool = connect + draw a line.** No workflow building, no flow editor with branches.
-6. **Granular by line, not by app.** "This chat can reach Grok and the support channel; that one only Jira."
-7. **One tab, any device.** Laptop and phone. Watch agents talk, approve, redirect.
-8. **User signs off; agents carry.** Approval-required actions never run without a yes. Everything else moves without the user.
-9. **Live where the user already talks. Do NOT build a chat app.** We don't compete with Claude's or Grok's chat. The layer sits behind the chats people already use. The canvas is for designing and watching, not for chatting.
-10. **We connect agents to agents, not agents to tools.** Plenty of products connect an agent to Gmail or Notion. That's not us. If a feature is "give agent X access to tool Y," it belongs to the agent's own app, not to Switchboard.
-11. **Not an automation tool.** n8n/Zapier/Make build fixed pipes in advance. We route in the moment, with context traveling with the work. If a feature starts to look like "build a flow first," stop and rethink.
-12. **Not a task queue.** If a receiving agent only picks up work when the human tells it to, the human is still the proxy. Every connected agent must be able to receive, act, and reply on its own.
+1. **One thread, many people, many agents.** A piece of work lives in one shared thread. Each person can bring their own AI (Claude, ChatGPT, Cursor, VS Code agent). Nobody copy-pastes or re-explains.
+2. **Share by thread, never everything.** Like sharing one Google Doc, not your whole Drive. "This thread, these people, these agents." Privacy hesitancy is real; granular sharing is the product, not a blocker.
+3. **Cross-vendor is the point.** Each AI vendor makes its own chats shareable (ChatGPT group chats, Claude Team projects, Claude Tag in Slack). None will put your teammate's Claude in your ChatGPT thread or feed a Claude conversation into Cursor. That bridge is ours.
+4. **Humans approve; agents carry.** Today people want a human to check before anything goes out. Version 1 must fit that: agents draft and propose, humans approve, the layer routes context and keeps the record. Teams turn off approvals line by line as trust grows. Never require full autonomy to be useful.
+5. **The team designs the web.** The canvas is where they connect agents, chats and people and draw lines between them. Each line = permission + what context crosses. Adding a tool = connect + draw a line.
+6. **Live where people already work. Do NOT build a chat app that competes with Claude or ChatGPT.** The layer sits behind the tools people already use. Our UI is for the shared thread view, the canvas, and approvals — not for replacing anyone's AI chat.
+7. **Not an automation tool.** n8n/Zapier/Make build fixed pipes in advance. We route in the moment, with context traveling with the work. If a feature starts to look like "build a flow first," stop and rethink.
+8. **Not a task queue.** If a receiving agent only picks up work when a human tells it to, the human is still the proxy. Connected agents must be able to receive, act and reply on their own (within approval rules).
+9. **One tab, any device.** Laptop and phone. See what's happening, approve, redirect.
 
 ---
 
@@ -47,96 +42,74 @@ Not for: enterprises buying an agent governance platform (Salesforce Agent Fabri
 
 Every agent on the hub gets five things:
 
-1. **An address.** An agent card: who it is, what it can do (A2A Agent Card shape).
-2. **An inbox.** It can receive a task or a question from another agent.
-3. **The ability to act.** It runs on that message without anyone opening its app.
-4. **A way back.** It can answer, ask a question back, report progress, or say it's done.
-5. **A shared thread.** Every agent in the exchange reads the same context; nothing is re-explained, and no agent works from stale state. If Jira closed the ticket, the user's Claude chat must not come back thinking it's still open.
-
-### 4.1 Ways an agent can join
-
-Agents differ a lot in what they allow. The hub supports four connection paths and picks the best one each vendor offers:
-
-| Path | What it means | Examples (verify current support before building) |
-| --- | --- | --- |
-| **Native A2A** | The vendor exposes a real A2A endpoint. We call it directly. | Atlassian Rovo |
-| **Agent API adapter** | The vendor has an API to launch and steer its agent. We wrap it in the adapter interface. | Cursor cloud agents |
-| **Hub-run agent** | The vendor has a model API but no agent API. The hub runs an agent on that model, with the user's own key, holding the thread context. | Claude API, xAI (Grok) API, OpenAI API |
-| **Chat entry point (MCP)** | The vendor's chat app can add our remote MCP connector. The user starts and checks threads from inside the chat they already use. | Claude app, Claude Code, Cursor; check others (Grok, ChatGPT) |
-
-A single vendor can use more than one path. Claude is both a chat entry point (the user starts a thread from the Claude app) and a hub-run agent (the hub's Claude agent keeps the thread going afterwards).
+1. **An address** — an agent card: who it is, who it belongs to, what it can do (A2A Agent Card shape).
+2. **An inbox** — it can receive a task or question from another agent or person.
+3. **The ability to act** — it runs on that message without anyone opening its app.
+4. **A way back** — it can answer, ask a question back, report progress, or say it's done.
+5. **A shared thread** — every participant (people and agents) reads the same context; nothing is re-explained.
 
 ---
 
-## 5. The hero exchange (build until this works end to end)
+## 5. Hero exchanges (build until these work end to end)
 
-This is the first exchange we prove because it is concrete and measurable, and Ben's team uses these tools. The product is **not** a dev tool; see 5.1 for where it goes next.
+### 5.1 Team thread → build (the primary demo)
 
-Ben plans a feature in Claude, then says: "Have Cursor build this and file it in Jira."
+1. Ben starts a thread from his Claude chat: "Add CSV export to the reports page." His Claude passes the full plan into the thread.
+2. Ben shares the thread with the CTO. The CTO's agent (ChatGPT or Claude) adds a constraint: "Must stream for files over 50MB." No copy-paste.
+3. The thread is handed to the developer's Cursor agent with the plan *and* the CTO's constraint already in it.
+4. Cursor asks a question ("Which columns by default?"). The hub's planner agent answers from the thread; if unsure, it asks Ben or the CTO in the thread.
+5. Cursor opens a PR, linked in the thread. Jira ticket moves to In review.
+6. Hub → developer/CTO: "Ready to merge. Approve?" One tap from a phone.
 
-1. **Claude → Jira:** create the ticket. Jira replies with the link.
-2. **Claude → Cursor:** the plan, decisions, files, ticket. The hub starts a Cursor agent on it.
-3. **Cursor → planner:** asks a question ("stream the file or build it in one go?"). The hub routes it to the **hub's Claude agent**, which now acts as the planner and answers from the plan. Ben is not involved.
-4. **Cursor → planner:** PR opened, link attached. The hub sees the PR on GitHub and moves the Jira ticket to In review.
-5. **Hub → Ben:** "Ready to merge. Approve?" This is the only time Ben is pulled in.
-6. **Ben approves.** The hub merges the PR through GitHub (Cursor opens PRs; it doesn't merge them). Jira closes the ticket, and the release-notes agent drafts the note.
+People did: one instruction, one added idea, one approval. Today the same feature means rounds of copy-paste between three people and four tools.
 
-Ben did: one instruction, one approval.
+### 5.2 Personal (Ben alone)
 
-**Who "Claude" is after the handoff:** the hub cannot type into Ben's Claude app chat. Once `start_thread` is called, the hub's Claude agent becomes the planner for that thread, carrying the full handoff. Ben sees what happened on the board, or by asking his Claude chat to run `get_thread`.
-
-### 5.1 Exchanges after the hero (to guide design, not v1 scope)
-
-- **Grok ↔ Claude:** Ben's Grok research agent finds something; it lands in the Claude planner's thread with sources attached, and Claude folds it into the plan. No copy-paste.
-- **Rovo ↔ Claude:** Rovo answers questions from company knowledge (Confluence, Jira history) when the Claude planner needs them.
-- **Ben's agent ↔ someone else's agent:** Ben's planner hands work to his developer's agent, which asks its questions back and reports results, with both people's approval of the line.
-
-Design the data model, adapters and canvas so these are "connect + draw a line," not new features.
+Ben plans in Claude, says "Have Cursor build this and file it in Jira." Claude → Jira (ticket), Claude → Cursor (plan), Cursor's questions answered by the planner agent, PR opened, Ben approves the merge. One instruction, one approval.
 
 ---
 
 ## 6. Architecture
 
 ```
- Claude app / Claude Code / Cursor / other chats ──(remote MCP connector)──┐
-                                                                           ▼
-                                   ┌───────────────────── HUB ─────────────────────┐
-  Board (web, phone + laptop) ◄───►│ API · Router · Lines (permissions) · Threads  │
-                                   │ Approvals · Escalation · Follow-ups · Events  │
-                                   │ A2A server (exposes agents) + A2A client      │
-                                   └───┬───────────┬───────────┬───────────┬───────┘
-                                       ▼           ▼           ▼           ▼
-                                 Jira (REST,   Cursor      GitHub      Hub-run agents
-                                 Rovo A2A      adapter     (PRs,       (Claude API; later
-                                 later)       (agent API)  merges)     Grok, OpenAI)
+ Claude app / Claude Code / ChatGPT / Cursor / VS Code ──(remote MCP connector)──┐
+                                                                                 ▼
+                              ┌──────────────────────────── HUB ────────────────────────────┐
+ Web app (thread view,  ◄────►│ API · Router · Lines (permissions) · Threads · Workspaces   │
+ canvas, approvals;           │ Members & sharing · Approvals · Escalation · Event log      │
+ phone + laptop)              │ A2A server (exposes agents) + A2A client                    │
+                              └───────┬──────────────┬──────────────┬──────────────┬────────┘
+                                      ▼              ▼              ▼              ▼
+                              Jira Rovo (A2A)  Cursor adapter  Hub Claude agent  Human inboxes
+                                               (agent API)     (Claude API)      (approvals)
 ```
 
 ### 6.1 Core data model
 
 | Entity | Key fields |
 | --- | --- |
-| **User** | id, name, contact for notifications |
-| **Agent** | id, name, vendor, kind (`a2a_native` / `adapter` / `hub_run` / `human`), agent card (skills), connection ref (credentials stored separately, encrypted), owner user, status |
-| **Line** | id, from_node, to_node, allowed message types (`task`, `question`, `answer`, `status`, `result`), context scope (what fields cross), requires_approval rules, enabled, **owners** (one user, or both users for a cross-person line), **accepted_by** (each owner's acceptance) |
-| **Thread** | id, title, goal, participants, shared context (summary, plan, decisions, constraints, open questions, links/files, **answers given by the user during escalations**), status (`active`, `waiting_on_user`, `done`, `blocked`), origin (which chat/agent started it), message count |
-| **Message** | id, thread_id, from_agent, to_agent, type, body, attachments/links, created_at |
-| **Run** | id, agent_id, thread_id, external ref (e.g. Cursor agent id), state, last_event_at, **timeout**, **cost cap**, cost so far |
-| **Approval** | id, thread_id, requested_by agent, action (`merge`, `send_external`, `spend`, …), payload, status, decided_by, decided_at |
-| **Event** | append-only log of every message, action, approval, permission check |
+| **Workspace** | id, name, members, billing plan |
+| **User** | id, workspace memberships, role (owner, member), notification settings |
+| **Agent** | id, name, vendor, kind (`a2a_native` / `adapter` / `hub_claude` / `mcp_client` / `human`), owner user, agent card (skills), connection ref (credentials stored separately, encrypted), status |
+| **Line** | id, from_node, to_node, allowed message types (`task`, `question`, `answer`, `status`, `result`), context scope (which fields cross), requires_approval rules, enabled |
+| **Thread** | id, workspace, title, goal, shared context (plan, decisions, constraints, open questions, links/files), status (`active`, `waiting_on_human`, `done`, `blocked`), origin |
+| **ThreadShare** | thread_id, member or agent, permission (`view`, `contribute`, `can_hand_off`) |
+| **Message** | id, thread_id, author (person or agent), to (optional), type, body, attachments/links, created_at |
+| **Run** | id, agent_id, thread_id, external ref (e.g. Cursor agent id), state, last_event_at |
+| **Approval** | id, thread_id, requested_by, approver(s), action (`merge`, `send_external`, `spend`, …), payload, status, decided_by, decided_at |
+| **Event** | append-only log of every message, share, action, approval, permission check |
 
 ### 6.2 Router (the heart)
 
 - Every message passes through the router.
-- Router checks the **Line** between sender and receiver: does a line exist, is it accepted by every owner, is the message type allowed. It strips context to the line's scope. No valid line → reject and log.
+- Checks thread shares and the **Line** between sender and receiver: allowed? which message types? strip context to the line's scope. No permission → reject and log.
 - Delivers to the receiver via its adapter; records a Run.
-- Collects adapter events (progress, question, result) and turns them into Messages back on the thread.
-- If an action needs approval → pause, create Approval, notify the user, resume on yes.
-- **Follow-ups:** if a thread is waiting on an agent past its timeout, the router nudges that agent, then escalates. The user never has to remember to chase.
-- **Loop guard:** each thread has a maximum message count (default 40). Past it, pause and escalate. Two agents asking each other questions forever is a real failure mode.
+- Turns adapter events (progress, question, result) into Messages on the thread.
+- Actions needing approval → pause, create Approval, notify approver(s), resume on yes.
 
 ### 6.3 Adapter interface
 
-Every agent type implements the same interface so the router doesn't care who it's talking to:
+Every agent type implements the same interface:
 
 ```
 describe()                          -> AgentCard
@@ -148,189 +121,178 @@ cancel(runRef)                      -> void
 
 Version 1 adapters:
 
-1. **Hub Claude agent (the planner).** A Claude agent the hub runs itself via the Claude API (or Claude Agent SDK). It holds the thread's shared context and answers other agents' questions on the planner's behalf. If it is not confident, it **escalates** to the user instead of guessing. When the user answers an escalation, the answer is written into the thread's shared context, so the planner doesn't ask again.
-2. **Cursor — adapter.** Cursor does not speak A2A. Wrap Cursor's cloud agents API: launch an agent on a repo with instructions, send follow-ups, poll status, read results (branch/PR). Map its states and messages onto the interface. Enforce the Run timeout and cost cap.
-3. **GitHub.** A GitHub App (or token for v1) that watches PR events by webhook and performs merges. The hub, not any agent, holds merge permission, so approval is enforced in one place.
-4. **Jira — REST first, Rovo A2A later.** v1 uses the Jira REST API for ticket create, transition and comment: it is reliable and needs no org admin switch. Rovo's A2A gateway (Agent Card at `https://a2a.atlassian.com/.well-known/agent.json`, JSON-RPC, OAuth 2.0 with PKCE and Dynamic Client Registration, admin must enable A2A for the org) is the follow-on upgrade, useful as proof we speak native A2A.
-5. **Human.** Modeled as an agent whose inbox is the approval/escalation inbox on the board.
+1. **Cursor — adapter.** Cursor does not speak A2A. Wrap Cursor's Cloud/Background Agents API: launch an agent on a repo with instructions, send follow-ups, poll status, read results (branch/PR).
+2. **Hub Claude agent (planner stand-in).** A Claude agent the hub runs via the Claude API / Agent SDK. Holds the thread's shared context and answers other agents' questions. If not confident, it asks the humans in the thread instead of guessing.
+3. **Jira (Rovo) — native A2A.** Atlassian runs an A2A gateway for Rovo (Agent Card at `https://a2a.atlassian.com/.well-known/agent.json`, JSON-RPC endpoint, OAuth 2.0 with PKCE, Dynamic Client Registration; an org admin must enable A2A). Jira REST API as fallback for create/transition/comment.
+4. **MCP clients (Claude, ChatGPT, Cursor, VS Code).** People's own AI tools connect through our MCP server (6.4) to start, read and contribute to threads.
+5. **Humans.** Modeled as participants whose inbox is the approvals/questions list.
 
-Next adapters after v1 (design for them, don't build yet): xAI (Grok) and OpenAI as hub-run agents; Rovo native A2A; another person's agents (section 6.8).
+**Verify before building each adapter:** vendor APIs change fast. Read the current docs (A2A spec version, Atlassian Rovo A2A, Cursor agents API, Claude API/Agent SDK, ChatGPT and VS Code MCP support) and adjust this spec if reality differs. Log differences in section 15.
 
-**Verify before building each adapter:** vendor APIs change fast. Before writing an adapter, read that vendor's current docs (A2A spec version, Atlassian Rovo A2A docs, Cursor agents API docs, GitHub Apps docs, Claude API/Agent SDK docs, xAI API docs) and adjust this spec if reality differs. Note any difference in the Decisions log (section 12).
+### 6.4 The MCP connector (how people's own AI tools join threads)
 
-### 6.4 The MCP connector (how chats start and see threads)
-
-A **remote MCP server** (Streamable HTTP + OAuth) that users add to their chat apps (Claude app as a custom connector, Claude Code, Cursor; check which other chat apps accept remote MCP connectors). Tools:
+A **remote MCP server** (Streamable HTTP + OAuth) that each person adds to their tool: Claude (app custom connector + Claude Code), ChatGPT (if it supports remote MCP connectors on the user's plan — verify), Cursor, VS Code. Tools:
 
 | Tool | What it does |
 | --- | --- |
-| `list_agents` | Agents this chat is allowed to reach (via its Lines) |
-| `start_thread` | Start an exchange: target agent(s), instruction, and a **full structured handoff of the current conversation** (goal, plan, decisions, constraints, open questions, files/links) |
-| `send_message` | Add a message to an existing thread |
+| `list_threads` | Threads shared with this person |
+| `start_thread` | Start a thread with a **full structured handoff of the current conversation** (goal, plan, decisions, constraints, open questions, files/links) and optional people/agents to share with |
 | `get_thread` | Read a thread's history and current state |
-| `catch_up` | What changed in this user's threads since this chat last checked: tickets closed, PRs merged, questions answered, approvals decided. Short, plain-language digest. |
-| `waiting_on_me` | Approvals and escalations for the user |
+| `contribute` | Add this person's (or their AI's) idea, constraint or answer to a thread |
+| `hand_off` | Send the thread to an agent (e.g. Cursor) to act on |
+| `share_thread` | Share with a person or agent at a permission level |
+| `waiting_on_me` | Approvals and questions for this person |
 | `approve` / `deny` | Decide an approval |
 
-**Handoff quality is the whole product.** The planner can only answer from what `start_thread` captured. An MCP server only receives what the chat model passes in a tool call; it cannot read the chat on its own. So:
+**Honest constraint 1:** an MCP server only receives what the chat model passes in a tool call; it cannot read the chat on its own. `start_thread` and `contribute` schemas must force complete, structured content (required fields), not one-liners.
 
-- The tool description must instruct the model to pass a complete, structured summary of the conversation, not a one-liner.
-- The schema has required fields for goal, plan, decisions, constraints, open questions and artifacts.
-- The server **rejects** handoffs that are too thin (e.g. an empty plan, or a goal with no decisions or constraints when the conversation clearly had them) and tells the model what's missing.
-
-**Second honest constraint:** the hub cannot type into an existing chat in the Claude app (or any other vendor's app). Follow-up questions go to the hub's Claude agent with the same context; the user sees the full thread on the board or via `get_thread` next time they ask.
-
-**Keeping the user's chat current (the stale-state problem).** Because we can't push into the chat, the chat's model will assume nothing happened since the handoff unless we make it check. So:
-
-- Every tool description tells the model: before answering anything about work handed off through Switchboard, call `catch_up` (or `get_thread`). Never assume the state you last saw is still true.
-- Every tool response ends with a short "since you last checked" digest, so any call keeps the model current, not just `catch_up`.
-- The hub tracks a per-chat (per MCP session/client) "last seen" marker so digests only show what's new.
-- Check whether each chat app surfaces MCP resource-update notifications. If one does, use them as well; don't depend on them.
-- Hub-run agents (like the hub's Claude planner) don't have this problem: they always read the live thread.
+**Honest constraint 2:** the hub cannot type into someone's existing chat. Updates reach people through the web app (thread view), notifications, and `get_thread` / `waiting_on_me` when they ask their AI.
 
 ### 6.5 Approvals & escalation
 
-- Default rules (user can edit per Line): merging to main, sending anything outside (email, message to a person), spending money → require approval.
-- Escalation triggers: hub Claude agent not confident; two agents disagree; a run errors twice; a run stalls past its timeout after a nudge; a run hits its cost cap; a thread hits the loop guard.
-- Notify via web push (and email fallback). Approve from phone in one tap.
+- Defaults (editable per Line and per thread): merging to main, sending anything outside the workspace, spending money → require approval.
+- Escalation: hub Claude agent not confident; agents disagree; a run errors twice; a run stalls past a timeout → question to the thread's humans.
+- Notify via web push (email fallback). Approve from phone in one tap.
 
-### 6.6 The board (canvas)
+### 6.6 The web app
 
-- **Canvas:** nodes = agents/chats/channels; lines = permissions + context scope. Drag from a node's edge to draw a line. Click a line to edit what crosses it and what needs approval.
-- **Live view:** handoffs animate along lines; each node shows status (idle, running, waiting on you).
-- **Waiting on you:** approvals + escalations, newest first.
-- **Thread view:** the full conversation between agents with links to jump into each app.
-- Works on phone and laptop. Phone priority: waiting-on-you and approve/deny.
-- Visual direction: clean, product-style, Figma-like canvas. Not a developer console. Not a chat UI.
-- The board is built in two stages: a read-only live view early (milestone 4), then the full editable canvas (milestone 8).
+- **Thread view (most-used screen):** the shared conversation — people and agents, labeled by who and which tool — with the current plan/context pinned at top, and jump-in links to each app.
+- **Canvas:** nodes = people, agents, chats; lines = permissions + context scope. Drag to draw a line; click a line to edit what crosses and what needs approval. Handoffs animate along lines; nodes show status.
+- **Waiting on you:** approvals and questions, newest first.
+- Phone priority: waiting on you, approve/deny, read a thread.
+- Visual direction: clean, product-style, Figma-like. Not a developer console. Not a chat app competing with Claude/ChatGPT.
 
-### 6.7 Security
+### 6.7 Security & trust
 
-- Credentials encrypted at rest, never passed to agents or into prompts.
-- Every message checked against Lines; deny by default.
-- Append-only event log for every action and permission decision.
-- Content coming back from agents is untrusted data: never let it change Lines, approvals or rules.
-- Content from **another person's** agents is doubly untrusted: it can ask and answer within the line's scope, nothing more.
-- Any user can revoke any line they own at any time, effective immediately.
-
-### 6.8 Cross-person lines (the handshake)
-
-This is what companies can't do for themselves: two people, each authorizing their own agents, letting them talk.
-
-- Ben draws a line from one of his agents to someone else's (by invite link or email).
-- The other person accepts, and sets what their side allows (message types, context scope, approval rules).
-- The line is live only while **both** owners have accepted it. Either can pause or revoke it.
-- Each owner's approval rules apply to their own side. Nothing leaves either person's agents without their own rules being met.
-- Each person sees the shared thread; neither sees the other's credentials, other lines, or other threads.
+- Credentials encrypted at rest; never passed to agents or into prompts.
+- Deny by default; every message checked against shares and Lines.
+- Append-only event log for every action, share and permission decision.
+- Content coming back from agents is untrusted data: it can never change shares, Lines, approvals or rules.
+- Trust is a selling point for teams: make "who can see what" obvious on every thread.
 
 ---
 
 ## 7. Suggested stack (defaults — change if there's a reason, log it)
 
 - TypeScript end to end.
-- Hub: Node service (Fastify or Hono). Postgres (Neon or Supabase). Realtime to the board via SSE or WebSockets.
-- MCP server: official MCP TypeScript SDK, Streamable HTTP transport, OAuth.
-- A2A: official A2A SDK if a TypeScript one is current; otherwise implement the JSON-RPC spec directly.
-- Board: Next.js + React Flow (or similar) for the canvas.
+- Hub: Node (Fastify or Hono). Postgres (Neon or Supabase). Realtime via SSE or WebSockets.
+- MCP server: official MCP TypeScript SDK, Streamable HTTP, OAuth.
+- A2A: official A2A SDK if a current TypeScript one exists; otherwise implement the JSON-RPC spec.
+- Web app: Next.js; React Flow (or similar) for the canvas.
 - Claude: Anthropic TypeScript SDK / Claude Agent SDK.
-- GitHub: Octokit + a GitHub App (or a fine-grained token for local v1).
-- Deploy: start local; then a single host (Fly.io, Render, or Railway) + managed Postgres. Ask Ben before signing up for any paid service.
+- Auth: workspace + user accounts with Google/GitHub sign-in.
+- Deploy: start local; then one host (Fly.io, Render or Railway) + managed Postgres. Ask Ben before any paid service.
 
 ---
 
 ## 8. Build order (milestones with "done when")
 
-Work one milestone at a time. Don't start the next until "done when" passes.
+One milestone at a time. Don't start the next until "done when" passes.
 
-1. **Hub skeleton.** Users, Agents, Lines, Threads, Messages, Runs, Events in Postgres; router with Line checks, loop guard and Run timeouts; a fake "echo" adapter. *Done when:* a message from agent A to agent B is delivered only if a Line allows it, every step is in the event log, and a thread past the loop guard pauses. Tests cover allowed, denied, scoped-context, loop-guard and timeout cases.
-2. **Hub Claude agent.** *Done when:* given a thread context, it answers a question from another agent; escalates to the human when it's unsure; and after the human answers, it uses that answer next time without asking again.
-3. **Cursor adapter + GitHub.** *Done when:* the hub starts a Cursor agent on a test repo with instructions, relays one follow-up question to the hub Claude agent and its answer back, sees the resulting PR via GitHub, and records the PR link on the thread. A stalled run gets nudged, then escalated.
-4. **Live view (read-only board).** *Done when:* Ben opens a page on laptop or phone and watches milestone 3's exchange happen: nodes, lines, and messages moving along the lines, driven by the event log. No editing yet. Show Ben a mockup before building.
-5. **MCP connector.** *Done when:* from Claude Code (then the Claude app), Ben runs `start_thread` to Cursor with a full structured handoff, a too-thin handoff is rejected with a clear reason, and later he sees the thread with `get_thread`. After other agents finish work, asking the same chat "where are we?" gets the current state (e.g. PR merged, ticket closed), not the state at handoff.
-6. **Jira (REST).** *Done when:* a thread creates a Jira ticket, moves it to In review on PR open, and closes it on merge.
-7. **Approvals + escalation + notifications.** *Done when:* merge waits for Ben's approval from his phone; nothing merges without it; the hub performs the merge after the yes.
-8. **Full canvas.** *Done when:* Ben sees his agents and lines, draws a new line, edits a line's scope and approval rules, revokes a line, and approves from the waiting-on-you list.
-9. **Second person (the handshake).** *Done when:* Ben invites his developer, the developer accepts and connects his own agent, and a thread from Ben's planner reaches the developer's agent, which asks a question back and reports a result. Revoking the line from either side stops it immediately.
+1. **Hub skeleton.** Workspaces, users, agents, threads, shares, lines, messages, events; router with permission checks; fake "echo" adapter. *Done when:* a message is delivered only when shares and lines allow it, context is scoped, and every step is logged. Tests cover allowed, denied and scoped cases.
+2. **MCP connector, shared threads.** *Done when:* Ben starts a thread from Claude Code (then the Claude app) with a full structured handoff, shares it with a second account, and that account reads and contributes to it from a different AI tool (ChatGPT or Cursor if supported; otherwise a second Claude).
+3. **Thread view in the web app.** *Done when:* both people see the same thread live, labeled by person and tool, with the plan pinned.
+4. **Hub Claude agent.** *Done when:* it answers an agent's question from the thread context, and asks the humans when unsure.
+5. **Cursor adapter + hand_off.** *Done when:* a thread is handed to a Cursor agent on a test repo, one follow-up question is answered from the thread, and the PR link lands on the thread.
+6. **Approvals + notifications.** *Done when:* merge waits for an approver's yes from a phone; nothing merges without it.
+7. **Jira via Rovo A2A (or REST fallback).** *Done when:* a thread creates a ticket, updates it on PR open, closes it on merge.
+8. **Canvas.** *Done when:* a workspace sees people, agents and lines; draws a new line; edits a line's scope; watches a live handoff.
+9. **Design partners.** *Done when:* 3 outside lean teams are using it weekly.
 
 ---
 
 ## 9. Pass test (is the product working?)
 
-- [ ] A real feature goes from plan to merged with **one instruction and one approval** from Ben.
-- [ ] Most agent questions are answered by the planner agent, not by Ben.
-- [ ] For two weeks, Ben stops copy-pasting between his agents.
-- [ ] Ben stops having to remember what's waiting: the waiting-on-you list is the only place he looks.
-- [ ] Ben opens the board daily without being reminded.
+- [ ] A real feature goes from idea to merged with contributions from two people using different AI tools, and **zero copy-paste** between them.
+- [ ] Cursor's questions are answered from the thread, not by a person re-explaining.
+- [ ] A design-partner team keeps using it for 4+ weeks without being reminded.
+- [ ] At least one team asks to add more people.
 
-Metrics to track from day one:
-
-- **Handoffs per user per week**, and whether it keeps growing after week three.
-- **Self-answered rate:** the share of agent-to-agent questions answered without the user. This is the number that tells us the user is really out of the middle.
+Metrics from day one: **shared threads per team per week**, **handoffs per week**, and **people per thread**. Watch whether they keep growing after week three.
 
 ---
 
 ## 10. Not in version 1
 
-Telegram/email/Slack channels, Grok/OpenAI adapters, Rovo native A2A (REST first), team billing, a browser extension, a flow/automation editor, our own chat interface. Cross-person lines are in v1 only as milestone 9, between two people who know each other.
+Cross-company threads (other organizations' agents), Telegram/email/Slack channels, a browser extension, a flow/automation editor, our own general-purpose AI chat, enterprise SSO/admin.
 
 ---
 
-## 11. Market context (why the edge exists)
+## 11. Competitive landscape (researched 2026-10-12)
 
-| Segment | Players | Why we're different |
+| Segment | Players | How we differ |
 | --- | --- | --- |
-| Enterprise agent control | Salesforce Agent Fabric, Kong Agent Gateway, Google/AWS/Microsoft agent registries | Enterprise sales, inside-one-company governance. We're self-serve, personal → small team, and work across companies on personal authorization. |
-| Vendor-as-hub | Atlassian Rovo (outside agents become Jira assignees) | Not neutral; won't treat rivals equally. |
-| Agent-to-tool access | Executor (YC S26), One (withone.ai), MCP tool connectors generally | They connect agents to tools. We connect agents to each other. Watch them: adding A2A handoffs is a short step for them. |
-| Dev-first A2A coordination | Synapse Channel, Whispers, CrewForm (open source) | CLI/self-hosted. Prove demand; not a product a non-engineer signs up for. |
-| Shared memory | Mem0 OpenMemory (shared memory across Claude/Cursor via MCP) | Memory, not agents acting and replying. Check before building milestone 5. |
-| Automation | Zapier, n8n, Make | Fixed pipes built in advance. We route in the moment. |
-| Visual agent builders | OpenAI Agent Builder, Copilot Studio, Agentforce, LangGraph Studio | Locked to one vendor's platform. |
+| Vendor-native shared chats | ChatGPT group chats (global) and shared projects; Claude Team projects; Claude Tag (multi-person Claude in Slack) | Each only shares within its own tool. **Do not build plain "shared AI chat" — the labs own it.** We bridge across tools and into coding agents. |
+| Enterprise agent control | Salesforce Agent Fabric (cross-vendor agent broker, GA May 2026), Kong Agent Gateway, Google/AWS/Microsoft agent registries | Enterprise sales, governance focus. We're self-serve for lean teams. |
+| Vendor-as-hub | Atlassian Rovo (outside agents like Cursor become Jira assignees; A2A gateway) | Not neutral. We use it as one connection. |
+| Agent-to-tool access | Executor (YC S26: one endpoint for all services, per-tool permissions), One (withone.ai: connect button + dashboard of every agent's actions, one-click revoke) | They connect agents to tools. We connect people and agents to each other around shared work. **Watch closely** — adding agent-to-agent handoffs is a short step for them. |
+| Dev-first A2A coordination | Synapse Channel, Whispers, CrewForm (open source, CLI/self-hosted) | Prove developer demand; not a product a lean team signs up for. |
+| Shared memory | Mem0 OpenMemory (shared memories across Claude/Cursor via MCP) | Memory, not shared threads with people, handoffs and approvals. **Check before milestone 2.** |
+| Automation | Zapier, n8n, Make | Fixed pipes built in advance; we route in the moment. |
+| Visual agent builders | OpenAI Agent Builder, Copilot Studio, Agentforce, LangGraph Studio, n8n | Locked to one vendor's platform; for building agents, not connecting people's existing ones. |
+| MCP server generation | Stainless, Speakeasy | Plumbing for SaaS vendors; not our product. |
 
-Biggest risks: Anthropic, xAI, OpenAI or Cursor ship a good-enough built-in handoff; Executor/One add A2A; vendor APIs change and break adapters; trust (we hold people's tool connections). Defense: neutrality across vendors, personal authorization, cross-person lines, speed, the canvas, and adapters for agents that don't speak A2A yet.
+**Biggest risks:** Anthropic, OpenAI or Cursor ship a "good enough" cross-tool bridge; Executor/One add agent-to-agent; vendor APIs change and break adapters; trust (we hold people's tool connections); people tolerate copy-paste more than we think.
+**Defense:** neutrality across vendors, speed, the shared thread + canvas experience, granular sharing, and adapters for tools that don't speak A2A yet.
 
 ---
 
-## 12. Decisions log
+## 12. Market context and timing (what we learned)
 
-Append here when a decision is made or the spec changes. Newest at the bottom.
+- **The wave:** AI is moving from people using tools to companies running agents that do work and transact. YC's 2026 batches are ~70–80% agent companies; Summer 2026's lead trend is infrastructure *for* agents (payments, identity, phones, sandboxes). That infrastructure layer is being taken by funded teams — not our fight.
+- **Our position is one level up:** a product that does real work on top of the new infrastructure, for a buyer adopting now. Harder to build than a simple tool, easier to sell than infrastructure.
+- **Timing:** cross-company, fully autonomous agent-to-agent is early (bot-to-bot negotiation is "still rare" in procurement). Inside one team, with humans approving, the pain exists today. That's why version 1 is internal teams + human approval.
+- **Build vs buy:** big companies may build their own layer; lean teams won't, for the same reason they don't build their own auth or billing.
+- **Lessons from ideas we rejected today:**
+  - Agent spend/tool control plane: real gap, but crowded with weekend-build open source and weak willingness to pay.
+  - Consumer agentic commerce plays (seller agents, affiliate for agents): the wave is slower than forecasts; ChatGPT pulled back in-chat checkout in March 2026; AI shopping adoption dipped Nov 2025–Mar 2026.
+  - Devtool "agent visibility": crowded (GEO/AEO category).
+  - Plain shared AI chat: owned by the labs.
+  - $20/month individual tools: need ~20,000 payers for $5M/year; team/B2B pricing needs far fewer customers.
+
+---
+
+## 13. Business model and goals
+
+- **Goal:** a durable $5–10M/year business, not a moonshot. Niches too small for venture-backed players are fine — that's partly the moat.
+- **Pricing to start (set real numbers after design partners):** free for one person with limits; team plan per seat; a workspace minimum so a 5–10 person team lands at roughly $100–500/month. Justify on hours of copy-paste and context loss removed.
+- **Growth loop:** sharing a thread invites a teammate; handing off across teams spreads it inside a company.
+
+---
+
+## 14. Go-to-market plan (after milestone 6)
+
+1. Ben uses it on his own work daily; shows the demo to his CTO for reactions (sounding board, not pilot).
+2. Record a 60-second demo of the team hero exchange (5.1): two people, two AI tools, Cursor builds it, zero copy-paste.
+3. Landing page + waitlist with the mission line.
+4. Recruit 3–5 lean-team design partners: founders/CTOs at small AI-forward companies who can say yes on the spot.
+5. List in the official MCP registry, other MCP directories, and Cursor's directory.
+6. Post the demo: r/ClaudeAI, r/cursor, r/ChatGPT, the Cursor forum, X, LinkedIn; Show HN once solid.
+7. Short guides people already search for ("how to share context between Claude and Cursor", "how my team stopped copy-pasting between AI tools").
+
+**Later direction (only after teams work):** sell the same layer to mid-size SaaS companies whose customers' agents want to work with their product — a hosted agent "front door" with per-customer permissions, metering and logs. Validate first by asking ~10 heads of product: "Are customers asking for agent access? What have you built?"
+
+---
+
+## 15. Decisions log
+
+Newest at the bottom.
 
 - 2026-10-12 — Product is the agent-to-agent layer + design canvas, not a task queue, automation tool, or chat app.
-- 2026-10-12 — Version 1 agents: Claude (planner, via MCP connector + hub Claude agent), Cursor (adapter), Jira.
 - 2026-10-12 — Telegram-first version dropped from v1; becomes a later connection.
-- 2026-10-12 — Human approves merges, external sends, spending. Nothing sends blind.
-- 2026-10-12 — Positioning: a **personal** A2A layer across any vendor (Claude, Grok, Rovo, Cursor, …). The user's own authorization is the unlock companies can't give. We connect agents to agents, not agents to tools. Cursor is the first proving case because Ben's team uses it, not because this is a dev tool.
-- 2026-10-12 — Added principle "Nobody has to remember": the hub follows up on waiting work; the user only sees the waiting-on-you list.
-- 2026-10-12 — Added GitHub to v1. Cursor opens PRs; the hub merges them through GitHub after approval and uses PR events to move Jira.
-- 2026-10-12 — Jira via REST first; Rovo A2A becomes a follow-on upgrade (needs an org admin switch and is newer).
-- 2026-10-12 — Read-only live view moved up to milestone 4; full editable canvas stays later (milestone 8).
-- 2026-10-12 — Added Run timeouts, cost caps, and a per-thread loop guard. Escalation answers are written back into thread context.
-- 2026-10-12 — `start_thread` rejects thin handoffs. New metric: self-answered rate.
-- 2026-10-12 — Cross-person lines need acceptance by both owners and are revocable by either (the handshake, milestone 9).
-- 2026-10-12 — No stale state: added `catch_up` tool, a "since you last checked" digest on every tool response, and a per-chat last-seen marker, so the user's own chat knows what other agents did (e.g. the ticket is closed).
-- 2026-10-12 — Milestone 1 built. Lines are one-way for starting work: a line from A to B lets A send anything the line allows, and lets B reply along it (question, answer, status, result) but not send B's own `task`. Two-way work needs a line each way.
-- 2026-10-12 — Milestone 1 uses plain SQL with the `pg` driver (no ORM) and local Postgres via Docker; tests run against a real Postgres. No HTTP API yet: nothing calls the hub from outside until the MCP connector (milestone 5) and the board (milestone 4).
-- 2026-10-12 — Escalations in milestone 1 set the thread to `waiting_on_user` and write an `escalation.raised` event. The Approval entity and notifications arrive in milestone 7.
+- 2026-10-12 — Humans approve merges, external sends and spending. Nothing sends blind.
+- 2026-10-12 — Switched from personal-first to **team-first**: shared threads where several people and their different AI tools work together, shared by thread. Reason: B2B pricing, lean teams feel the pain today (CTO quote), and labs already own single-vendor shared chats.
+- 2026-10-12 — VS Code and ChatGPT added alongside Claude and Cursor as tools people bring into threads (verify MCP support for each).
+- 2026-10-12 — Ben can't pilot at his employer; plan is self-use + CTO as sounding board + outside design partners.
 
 ---
 
-## 13. Launch plan (after milestone 8)
-
-1. Use it daily with the developer for 2+ weeks (milestone 9 in practice).
-2. Record a 60-second demo: plan in Claude → Cursor builds it → zero copy-paste → board shows the exchange. Landing page + waitlist.
-3. List in the official MCP registry, other MCP directories, Cursor's directory.
-4. Post the demo: r/ClaudeAI, r/cursor, Cursor forum, X, LinkedIn; Show HN once solid.
-5. Hand-recruit 20 users who've posted about this pain, and users of the open-source handoff projects.
-6. Growth loop: a handoff to another person's agent invites them.
-7. Pricing to start: free solo tier with a handoff limit, paid personal tier, per-seat team tier. Set prices after the first 20 users.
-
----
-
-## 14. How to work with Ben
+## 16. How to work with Ben
 
 - Ben is technical but not a software engineer. Explain decisions in plain language, show results, skip jargon.
-- He thinks visually. When a UI decision matters, show a screenshot or a quick mockup before building it out.
+- He thinks visually. When a UI decision matters, show a screenshot or quick mockup before building it out.
+- He wants honest pushback and weaknesses surfaced, not cheerleading.
 - Ask before: adding paid services, changing a product principle, or expanding scope beyond the current milestone.
 - Keep secrets in `.env` (never committed). Provide `.env.example`.
-- At the end of each milestone: a short summary of what works, what doesn't yet, and the next step.
-- Keep this file current. If you learn something about a vendor API that changes the plan, update section 6 and log it in section 12.
+- At the end of each milestone: short summary of what works, what doesn't yet, and the next step.
+- Keep this file current. If a vendor API changes the plan, update section 6 and log it in section 15.
