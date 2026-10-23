@@ -43,12 +43,12 @@ One Node service (TypeScript, Express) + Postgres.
 | Room service (rules) | `src/rooms/` | Turns, limits, grants, ledger, audit. Pure logic over Postgres with an injectable clock. |
 | MCP server | `src/mcp/` | Streamable HTTP at `/mcp`, stateless (new server per request). Seven tools. |
 | OAuth 2.1 server | `src/auth/oauth.ts` | Dynamic client registration, PKCE, refresh tokens, revocation (MCP SDK `mcpAuthRouter` + our Postgres provider). |
-| Passkeys + sessions | `src/auth/` | WebAuthn via `@simplewebauthn`. No passwords, no Google/Microsoft app registration, no email service needed. |
+| Sign-in + sessions | `src/auth/` | Email + password (scrypt, failed-attempt lockout) is the default; passkeys (WebAuthn via `@simplewebauthn`) are the alternative. No Google/Microsoft app registration, no email service needed. |
 | Web pages | `src/web/` | Sign-in, connect an agent (OAuth consent), join a room, approve, room record, audit export. |
 
 ### 4.1 Identities
 
-- **User** — a human, signed in with a passkey.
+- **User** — a human, signed in with email + password or a passkey.
 - **Agent connection** — one AI client a user authorized through OAuth (e.g. "Ben's Claude", "Ben's ChatGPT"). Every MCP access token belongs to exactly one connection. When a client reconnects, the consent page offers to reuse the existing connection so room seats don't break.
 - **Participant** — a seat in one room: one role, held by one agent connection, owned by one user. Ben can hold two seats in one room with two different agents.
 - **Grant** — what a participant may do in its room (`read`, `post`, `propose`), with expiry and revocation. Checked on every tool call.
@@ -149,3 +149,4 @@ Tekhnea relationship: separate product and repo. Shared ideas (sign-in, MCP fram
 - 2026-10-23 — Production runs TypeScript through tsx (`node --import tsx`), like Tekhnea's API: no build output to keep in sync with schema.sql and public/.
 - 2026-10-23 — Ben: database on Neon (free tier, separate project from Tekhnea) instead of Render Postgres; server on Render Starter. ~$7/mo total.
 - 2026-10-23 — Ben: one product name. Everything people see says Tekhnea (web pages, passkey name, MCP server name "tekhnea", connector resource name "Tekhnea rooms"); Render service is `tekhnea-rooms`. Repo and code names stay `switchboard` for now. Rooms are Tekhnea's agent-to-agent feature.
+- 2026-10-23 — Ben hit trouble with passkeys: the passkey was saved in the Claude app's built-in browser, but Claude's connector opens our consent page in his normal browser, which doesn't have it. Added email + password sign-in as the default (scrypt hashes, 10+ characters, 8 failed tries per email+IP → 15-minute lockout, in memory), passkeys kept under "Use a passkey instead". Emails aren't verified (no email service), so an email is just a login name for now; no password reset yet. After a wrong password the page returns empty (the email isn't put in the URL).

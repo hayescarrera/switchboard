@@ -4,6 +4,7 @@
  */
 import express, { type NextFunction, type Request, type Response } from "express";
 import { SESSION_COOKIE, SignInError, type User, type Users } from "../auth/users.js";
+import { FailureLimiter } from "../auth/passwords.js";
 import type { OAuthProvider } from "../auth/oauth.js";
 import { RoomError, type RoomService, type RoomView, type Seat } from "../rooms/service.js";
 import { fmtDate, html, page, raw, signInBlock, type Html } from "./html.js";
@@ -29,6 +30,29 @@ function readCookie(req: Request, name: string): string | undefined {
     if (k === name) return decodeURIComponent(v.join("="));
   }
   return undefined;
+}
+
+const SIGNIN_ERRORS: Record<string, string> = {
+  bad: "That email and password don't match.",
+  locked: "Too many tries. Wait 15 minutes and try again.",
+};
+
+/** Where to come back to after signing in: our own path only, never another site. */
+function safeNext(v: unknown): string {
+  const s = typeof v === "string" ? v : "/";
+  return s.startsWith("/") && !s.startsWith("//") && !s.startsWith("/\\") ? s : "/";
+}
+
+function signInProps(req: Request) {
+  const url = new URL(req.originalUrl, "http://x");
+  const code = url.searchParams.get("signin_error");
+  const msg = url.searchParams.get("signin_msg");
+  url.searchParams.delete("signin_error");
+  url.searchParams.delete("signin_msg");
+  return {
+    next: url.pathname + (url.search || ""),
+    error: msg ? msg.slice(0, 200) : code ? (SIGNIN_ERRORS[code] ?? null) : null,
+  };
 }
 
 export function webRouter(deps: WebDeps): express.Router {
@@ -60,7 +84,46 @@ export function webRouter(deps: WebDeps): express.Router {
   }
 
   const form = express.urlencoded({ extended: false, limit: "20kb" });
+  const failures = new FailureLimiter();
+
+  function backWithError(res: Response, next: string, err: { code?: string; msg?: string }) {
+    const u = new URL(next, "http://x");
+    if (err.code) u.searchParams.set("signin_error", err.code);
+    if (err.msg) u.searchParams.set("signin_msg", err.msg);
+    res.redirect(303, u.pathname + u.search);
+  }
   const json = express.json({ limit: "64kb" });
+
+  // ---------- email + password ----------
+
+  r.post("/auth/password/register", sameOrigin, form, async (req, res) => {
+    const next = safeNext(req.body?.next);
+    try {
+      const user = await users.registerWithPassword({ name: req.body?.name, email: req.body?.email, password: req.body?.password });
+      const s = await users.createSession(user.id);
+      setSession(res, s.token, s.expires);
+      res.redirect(303, next);
+    } catch (err) {
+      if (err instanceof SignInError) return backWithError(res, next, { msg: err.message });
+      throw err;
+    }
+  });
+  r.post("/auth/password/sign-in", sameOrigin, form, async (req, res) => {
+    const next = safeNext(req.body?.next);
+    const key = `${String(req.body?.email ?? "").trim().toLowerCase()}|${req.ip}`;
+    if (failures.blocked(key)) return backWithError(res, next, { code: "locked" });
+    try {
+      const user = await users.signInWithPassword(String(req.body?.email ?? ""), String(req.body?.password ?? ""));
+      failures.clear(key);
+      const s = await users.createSession(user.id);
+      setSession(res, s.token, s.expires);
+      res.redirect(303, next);
+    } catch (err) {
+      if (!(err instanceof SignInError)) throw err;
+      failures.fail(key);
+      backWithError(res, next, { code: "bad" });
+    }
+  });
 
   // ---------- passkeys ----------
 
@@ -116,7 +179,7 @@ export function webRouter(deps: WebDeps): express.Router {
           body: html`
             <h1>Your agents, in one room</h1>
             <p class="sub">Tekhnea lets your Claude, your ChatGPT, or someone else's agent work on one goal together. You approve only the result.</p>
-            ${signInBlock("Sign in to see your rooms and connected agents.")}`,
+            ${signInBlock("Sign in to see your rooms and connected agents.", signInProps(req))}`,
         }),
       );
     }
@@ -188,7 +251,7 @@ export function webRouter(deps: WebDeps): express.Router {
         page({
           title: "Connect",
           narrow: true,
-          body: html`<h1>Connect ${app}</h1>${signInBlock(`Sign in so ${app} can act as your agent in Tekhnea rooms.`)}`,
+          body: html`<h1>Connect ${app}</h1>${signInBlock(`Sign in so ${app} can act as your agent in Tekhnea rooms.`, signInProps(req))}`,
         }),
       );
     }
@@ -256,7 +319,7 @@ export function webRouter(deps: WebDeps): express.Router {
         <p class="muted">The seat may: ${inv.scopes.join(", ")}. Link expires ${fmtDate(inv.expires_at)}.</p>
       </section>`;
     if (!req.user) {
-      return res.send(page({ title: "Join", narrow: true, body: html`<h1>Join a room</h1>${summary}${signInBlock("Sign in to pick which of your AI agents takes this seat.")}` }));
+      return res.send(page({ title: "Join", narrow: true, body: html`<h1>Join a room</h1>${summary}${signInBlock("Sign in to pick which of your AI agents takes this seat.", signInProps(req))}` }));
     }
     const conns = await users.connections(req.user.id);
     const body = conns.length
@@ -291,7 +354,7 @@ export function webRouter(deps: WebDeps): express.Router {
 
   r.get("/rooms/:id", async (req, res) => {
     if (!req.user) {
-      return res.send(page({ title: "Room", narrow: true, body: html`<h1>Sign in to see this room</h1>${signInBlock("Only people with a seat in a room can see it.")}` }));
+      return res.send(page({ title: "Room", narrow: true, body: html`<h1>Sign in to see this room</h1>${signInBlock("Only people with a seat in a room can see it.", signInProps(req))}` }));
     }
     try {
       const v = await rooms.roomForHuman(req.user.id, String(req.params.id));

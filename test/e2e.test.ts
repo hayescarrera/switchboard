@@ -307,3 +307,67 @@ describe("first test: Claude + ChatGPT draft the onboarding checklist", () => {
     expect(rows[0].n).toBe(1);
   });
 });
+
+describe("email + password sign-in", () => {
+  const post = (path: string, body: Record<string, string>, headers: Record<string, string> = {}) =>
+    fetch(`${base}${path}`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { origin: base, "content-type": "application/x-www-form-urlencoded", ...headers },
+      body: new URLSearchParams(body),
+    });
+  const cookieOf = (r: Response) => (r.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+  it("creates an account, returns to where you were, signs back in", async () => {
+    const reg = await post("/auth/password/register", { name: "Ben", email: "Ben@Example.com", password: "correct horse 1", next: "/join/abc" });
+    expect(reg.status).toBe(303);
+    expect(reg.headers.get("location")).toBe("/join/abc");
+    const home = await (await fetch(`${base}/`, { headers: { cookie: cookieOf(reg) } })).text();
+    expect(home).toContain("Hi Ben");
+
+    const again = await post("/auth/password/sign-in", { email: "ben@example.com", password: "correct horse 1", next: "/" });
+    expect(again.status).toBe(303);
+    expect(cookieOf(again)).toMatch(/^sb_session=/);
+
+    const dup = await post("/auth/password/register", { name: "Ben", email: "ben@example.com", password: "another pass 22", next: "/" });
+    expect(new URL(dup.headers.get("location")!, base).searchParams.get("signin_msg")).toMatch(/already exists/);
+  });
+
+  it("refuses a wrong password, short passwords, other-site redirects and other-site forms", async () => {
+    await post("/auth/password/register", { name: "Ben", email: "ben@example.com", password: "correct horse 1", next: "/" });
+    const bad = await post("/auth/password/sign-in", { email: "ben@example.com", password: "wrong password", next: "/" });
+    expect(bad.headers.get("location")).toBe("/?signin_error=bad");
+    expect(bad.headers.get("set-cookie")).toBeNull();
+    const short = await post("/auth/password/register", { name: "X", email: "x@example.com", password: "short", next: "/" });
+    expect(new URL(short.headers.get("location")!, base).searchParams.get("signin_msg")).toMatch(/at least 10/);
+    const evil = await post("/auth/password/sign-in", { email: "ben@example.com", password: "correct horse 1", next: "//evil.test/x" });
+    expect(evil.headers.get("location")).toBe("/");
+    const cross = await post("/auth/password/sign-in", { email: "ben@example.com", password: "correct horse 1", next: "/" }, { origin: "https://evil.test" });
+    expect(cross.status).toBe(403);
+  });
+
+  it("locks an email after repeated wrong passwords", async () => {
+    await post("/auth/password/register", { name: "Ben", email: "lock@example.com", password: "correct horse 1", next: "/" });
+    for (let i = 0; i < 8; i++) await post("/auth/password/sign-in", { email: "lock@example.com", password: "nope nope nope", next: "/" });
+    const r = await post("/auth/password/sign-in", { email: "lock@example.com", password: "correct horse 1", next: "/" });
+    expect(r.headers.get("location")).toBe("/?signin_error=locked");
+  });
+
+  it("works from the connect page Claude opens in a normal browser", async () => {
+    const meta = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json();
+    const reg = await (await fetch(meta.registration_endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ client_name: "Claude", redirect_uris: ["https://client.test/cb"], token_endpoint_auth_method: "none" }),
+    })).json();
+    const auth = new URL(meta.authorization_endpoint);
+    auth.search = new URLSearchParams({ response_type: "code", client_id: reg.client_id, redirect_uri: "https://client.test/cb", code_challenge: "x".repeat(43), code_challenge_method: "S256" }).toString();
+    const connect = new URL((await fetch(auth, { redirect: "manual" })).headers.get("location")!).pathname;
+    const page = await (await fetch(`${base}${connect}`)).text();
+    expect(page).toContain('action="/auth/password/sign-in"');
+    const signUp = await post("/auth/password/register", { name: "Ben", email: "ben@example.com", password: "correct horse 1", next: connect });
+    expect(signUp.headers.get("location")).toBe(connect);
+    const consent = await (await fetch(`${base}${connect}`, { headers: { cookie: cookieOf(signUp) } })).text();
+    expect(consent).toContain("Connect Claude?");
+  });
+});

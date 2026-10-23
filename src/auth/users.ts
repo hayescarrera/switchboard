@@ -15,6 +15,7 @@ import { randomUUID } from "node:crypto";
 import type { Clock } from "../clock.js";
 import { newSecret, sha256 } from "../crypto.js";
 import type { Db } from "../db/pool.js";
+import { hashPassword, verifyPassword } from "./passwords.js";
 
 export const SESSION_COOKIE = "sb_session";
 const SESSION_DAYS = 30;
@@ -59,6 +60,40 @@ export class Users {
 
   async endSession(token: string | undefined): Promise<void> {
     if (token) await this.opts.db.query(`DELETE FROM web_sessions WHERE token_hash = $1`, [sha256(token)]);
+  }
+
+  // ---------- email + password ----------
+
+  async registerWithPassword(input: { name: string; email: string; password: string }): Promise<User> {
+    const name = (input.name ?? "").trim().replace(/\s+/g, " ");
+    const email = (input.email ?? "").trim().toLowerCase();
+    const password = input.password ?? "";
+    if (name.length < 1 || name.length > 60) throw new SignInError("Enter your name (up to 60 characters).");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new SignInError("Enter a valid email address.");
+    if (password.length < 10) throw new SignInError("Use a password of at least 10 characters.");
+    if (password.length > 200) throw new SignInError("That password is too long.");
+    const hash = await hashPassword(password);
+    try {
+      const { rows } = await this.opts.db.query<User>(
+        `INSERT INTO users (name, email, password_hash) VALUES ($1,$2,$3) RETURNING id, name`,
+        [name, email, hash],
+      );
+      return rows[0]!;
+    } catch (err) {
+      if ((err as { code?: string }).code === "23505") throw new SignInError("An account with that email already exists. Sign in instead.");
+      throw err;
+    }
+  }
+
+  async signInWithPassword(emailIn: string, password: string): Promise<User> {
+    const email = (emailIn ?? "").trim().toLowerCase();
+    const { rows } = await this.opts.db.query<User & { password_hash: string | null }>(
+      `SELECT id, name, password_hash FROM users WHERE lower(email) = $1`,
+      [email],
+    );
+    const ok = await verifyPassword(password ?? "", rows[0]?.password_hash ?? null);
+    if (!ok || !rows[0]) throw new SignInError("That email and password don't match.");
+    return { id: rows[0].id, name: rows[0].name };
   }
 
   // ---------- registration ----------

@@ -47,17 +47,36 @@ const step = (s: string) => console.log(`✓ ${s}`);
 // 1. Create an account with a passkey.
 await page.goto(base);
 await shot(page, "01-sign-in");
+// 1a. Email + password account.
 await page.getByText("New here? Create an account").click();
-await page.getByLabel("Your name").fill("Ben Linder");
-await page.getByRole("button", { name: "Create account with a passkey" }).click();
+const reg = page.locator('form[action="/auth/password/register"]');
+await reg.getByLabel("Your name").fill("Ben Linder");
+await reg.getByLabel("Email").fill("ben@example.com");
+await reg.getByLabel("Password").fill("correct horse 1");
+await reg.getByRole("button", { name: "Create account" }).click();
 await page.getByRole("heading", { name: "Hi Ben Linder" }).waitFor();
-step("passkey account created and signed in");
-
-// 2. Sign out and back in with the same passkey.
+step("email + password account created and signed in");
 await page.getByRole("button", { name: "Sign out" }).click();
+const signin = page.locator('form[action="/auth/password/sign-in"]');
+await signin.getByLabel("Email").fill("ben@example.com");
+await signin.getByLabel("Password").fill("wrong password");
+await signin.getByRole("button", { name: "Sign in" }).click();
+await page.getByText("That email and password don't match.").waitFor();
+await shot(page, "01b-sign-in-error");
+await signin.getByLabel("Email").fill("ben@example.com");
+await signin.getByLabel("Password").fill("correct horse 1");
+await signin.getByRole("button", { name: "Sign in" }).click();
+await page.getByRole("heading", { name: "Hi Ben Linder" }).waitFor();
+step("wrong password refused, right one signs in");
+
+// 2. Passkeys still work as the alternative (adds one to this account, then signs in with it).
+await page.getByRole("button", { name: "Add a passkey on this device" }).click();
+await page.waitForLoadState();
+await page.getByRole("button", { name: "Sign out" }).click();
+await page.getByText("Use a passkey instead").click();
 await page.getByRole("button", { name: "Sign in with a passkey" }).click();
 await page.getByRole("heading", { name: "Hi Ben Linder" }).waitFor();
-step("signed back in with the passkey");
+step("passkey added and used to sign in");
 
 // 3. Two AI apps connect through OAuth; Ben allows each on the consent page.
 async function connect(clientName: string) {

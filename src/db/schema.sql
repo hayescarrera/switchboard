@@ -228,3 +228,8 @@ CREATE TRIGGER audit_append_only BEFORE UPDATE OR DELETE ON audit
 DROP TRIGGER IF EXISTS messages_append_only ON messages;
 CREATE TRIGGER messages_append_only BEFORE UPDATE ON messages
   FOR EACH ROW EXECUTE FUNCTION switchboard_append_only();
+
+-- ---------- Email + password sign-in (added 2026-10-23) ----------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text;
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (lower(email)) WHERE email IS NOT NULL;

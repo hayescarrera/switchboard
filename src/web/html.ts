@@ -56,19 +56,38 @@ ${opts.body.__html}
 </html>`;
 }
 
-/** The passkey sign-in / create-account block. Reloads the page when done. */
-export function signInBlock(lead: string): Html {
+/** Sign-in / create-account block: email + password first, passkey as an option. Returns to `next`. */
+export function signInBlock(lead: string, opts: { next: string; error?: string | null; email?: string }): Html {
   return html`
     <section class="card">
       <p class="lead">${lead}</p>
-      <button type="button" class="primary" data-passkey="sign-in">Sign in with a passkey</button>
+      ${opts.error ? html`<p class="error" role="alert">${opts.error}</p>` : ""}
+      <form method="post" action="/auth/password/sign-in" class="stack">
+        <input type="hidden" name="next" value="${opts.next}">
+        <label>Email <input name="email" type="email" required autocomplete="username" value="${opts.email ?? ""}"></label>
+        <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+        <button class="primary">Sign in</button>
+      </form>
       <details class="new">
         <summary>New here? Create an account</summary>
-        <form data-passkey="register" class="stack">
-          <label>Your name <input name="name" required maxlength="60" autocomplete="name" placeholder="Ben Linder"></label>
-          <button class="primary">Create account with a passkey</button>
-          <p class="hint">Your device saves a passkey (Face ID, Touch ID, Windows Hello or a security key). No password.</p>
+        <form method="post" action="/auth/password/register" class="stack">
+          <input type="hidden" name="next" value="${opts.next}">
+          <label>Your name <input name="name" required maxlength="60" autocomplete="name"></label>
+          <label>Email <input name="email" type="email" required autocomplete="username"></label>
+          <label>Password <input name="password" type="password" required minlength="10" autocomplete="new-password"></label>
+          <p class="hint">At least 10 characters.</p>
+          <button class="primary">Create account</button>
         </form>
+      </details>
+      <details class="new">
+        <summary>Use a passkey instead</summary>
+        <div class="stack">
+          <button type="button" data-passkey="sign-in">Sign in with a passkey</button>
+          <form data-passkey="register" class="stack">
+            <label>Your name <input name="name" required maxlength="60" autocomplete="name"></label>
+            <button>Create account with a passkey</button>
+          </form>
+        </div>
       </details>
       <p class="error" data-passkey-error role="alert" hidden></p>
     </section>`;
