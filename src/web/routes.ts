@@ -6,7 +6,8 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { SESSION_COOKIE, SignInError, type User, type Users } from "../auth/users.js";
 import { FailureLimiter } from "../auth/passwords.js";
 import type { OAuthProvider } from "../auth/oauth.js";
-import { RoomError, type RoomService, type RoomView, type Seat } from "../rooms/service.js";
+import type { HandoffService } from "../rooms/handoffs.js";
+import { RoomError, type RoomView, type Seat } from "../rooms/service.js";
 import { fmtDate, html, page, raw, signInBlock, type Html } from "./html.js";
 
 declare module "express-serve-static-core" {
@@ -17,7 +18,7 @@ declare module "express-serve-static-core" {
 
 export interface WebDeps {
   users: Users;
-  rooms: RoomService;
+  rooms: HandoffService;
   oauth: OAuthProvider;
   baseUrl: string;
   mcpUrl: string;
@@ -196,7 +197,7 @@ export function webRouter(deps: WebDeps): express.Router {
               list.length
                 ? html`<ul class="rows">${list.map(
                     (v) => html`<li><a href="/rooms/${v.room.id}">${v.room.goal.slice(0, 140)}</a>
-                      <span class="pill ${v.room.status}">${statusWord(v)}</span></li>`,
+                      <span>${waitingOn(v, req.user!.id).length ? html`<span class="pill proposed">Needs your answer</span> ` : ""}<span class="pill ${v.room.status}">${statusWord(v)}</span></span></li>`,
                   )}</ul>`
                 : html`<p class="muted">No rooms yet. Ask one of your connected agents to “create a Tekhnea room” for a goal.</p>`
             }
@@ -378,6 +379,17 @@ export function webRouter(deps: WebDeps): express.Router {
     res.redirect(303, `/rooms/${req.params.id}`);
   });
 
+  r.post("/rooms/:id/questions/:qid/answer", sameOrigin, form, async (req, res) => {
+    if (!req.user) return res.redirect(303, `/rooms/${req.params.id}`);
+    try {
+      await rooms.answerAsPerson(req.user.id, String(req.params.id), String(req.params.qid), String(req.body?.answer ?? ""), req.body?.remember === "1");
+    } catch (err) {
+      if (!(err instanceof RoomError)) throw err;
+      return res.status(400).send(page({ title: "Room", narrow: true, user: req.user, body: html`<h1>Couldn't send that answer</h1><p>${err.message}</p><p><a href="/rooms/${req.params.id}">Back</a></p>` }));
+    }
+    res.redirect(303, `/rooms/${req.params.id}`);
+  });
+
   r.post("/rooms/:id/seats/:sid/remove", sameOrigin, async (req, res) => {
     if (!req.user) return res.redirect(303, `/rooms/${req.params.id}`);
     try {
@@ -428,6 +440,12 @@ function connectHelp(mcpUrl: string): Html {
     </details>`;
 }
 
+/** Escalated questions in this room waiting on this person. */
+function waitingOn(v: RoomView, userId: string) {
+  if (!v.handoff || v.room.status !== "open") return [];
+  return v.handoff.questions.filter((q) => q.status === "escalated" && v.seats.find((s) => s.id === q.escalated_by)?.user_id === userId);
+}
+
 function roomPage(v: RoomView, user: User): Html {
   const { room, seats } = v;
   const byId = new Map(seats.map((s) => [s.id, s]));
@@ -447,8 +465,8 @@ function roomPage(v: RoomView, user: User): Html {
     return html`<li>
       <span><strong>${s.role}</strong> · ${s.agent_label} <span class="muted">for ${s.user_name}</span>
         ${gone ? html`<span class="pill closed">${gone}</span>` : ""}
-        ${current?.id === s.id && room.status === "open" ? html`<span class="pill turn">Their turn</span>` : ""}</span>
-      <span class="muted">${ledger?.posts ?? 0} post${ledger?.posts === 1 ? "" : "s"} · ~${ledger?.est_tokens ?? 0} tokens</span>
+        ${room.mode !== "handoff" && current?.id === s.id && room.status === "open" ? html`<span class="pill turn">Their turn</span>` : ""}</span>
+      <span class="muted">${room.mode === "handoff" ? "" : `${ledger?.posts ?? 0} post${ledger?.posts === 1 ? "" : "s"} · `}~${ledger?.est_tokens ?? 0} tokens of work</span>
       ${!gone && (isOwner || s.user_id === user.id) && (room.status === "open" || room.status === "proposed")
         ? html`<form method="post" action="/rooms/${room.id}/seats/${s.id}/remove" data-confirm="Remove the ${s.role} seat? That agent loses access to this room.">
             <button class="link danger">Remove</button></form>`
@@ -462,7 +480,7 @@ function roomPage(v: RoomView, user: User): Html {
       <h1>${room.goal}</h1>
       <span class="pill ${room.status}">${statusWord(v)}</span>
     </div>
-    <p class="muted">${room.turns_used} of ${room.turn_limit} turns used · closes ${fmtDate(room.deadline)}
+    <p class="muted">${room.turns_used} of ${room.turn_limit} ${room.mode === "handoff" ? "actions" : "turns"} used · closes ${fmtDate(room.deadline)}
       ${room.close_reason ? html` · ${room.close_reason}` : ""}</p>
 
     ${
@@ -491,14 +509,16 @@ function roomPage(v: RoomView, user: User): Html {
         : ""
     }
 
+    ${handoffSections(v, user, name)}
+
     <section class="card">
       <h2>Seats</h2>
       <ul class="rows">${seats.map(seatRow)}</ul>
       ${openRoles.length ? html`<p class="muted">Not joined yet: ${openRoles.join(", ")}. Ask the owner's agent to “invite” that role for a join link.</p>` : ""}
     </section>
 
-    <section class="card">
-      <h2>Conversation</h2>
+    ${room.mode === "handoff" && !v.messages.length ? "" : html`<section class="card">
+      <h2>${room.mode === "handoff" ? "Notes" : "Conversation"}</h2>
       ${v.messages.length ? "" : html`<p class="muted">Nothing posted yet.</p>`}
       <ol class="thread">
         ${v.messages.map(
@@ -510,7 +530,7 @@ function roomPage(v: RoomView, user: User): Html {
           </li>`,
         )}
       </ol>
-    </section>
+    </section>`}
 
     ${
       v.proposals.filter((p) => p.status !== "pending").length
@@ -523,4 +543,58 @@ function roomPage(v: RoomView, user: User): Html {
     }
 
     <p class="muted"><a href="/rooms/${room.id}/audit.json">Download the audit log</a> (every tool call and decision in this room).</p>`;
+}
+
+function handoffSections(v: RoomView, user: User, name: (id: string) => string): Html {
+  const h = v.handoff;
+  if (!h) return html``;
+  const mine = waitingOn(v, user.id);
+  const l = h.latest;
+  const list = (title: string, items: string[]) => (items.length ? html`<h3>${title}</h3><ul>${items.map((i) => html`<li>${i}</li>`)}</ul>` : "");
+  return html`
+    ${mine.map(
+      (q) => html`<section class="card decision">
+        <h2>Waiting on you: question ${q.seq}</h2>
+        <p class="muted">${name(q.asked_by)} asked; your agent sent it to you: “${q.escalation_reason ?? ""}”</p>
+        <p class="warn">Written by the other side's AI agent.</p>
+        <div class="prose">${q.body}</div>
+        <form method="post" action="/rooms/${v.room.id}/questions/${q.id}/answer" class="stack spaced">
+          <label>Your answer <textarea name="answer" required maxlength="8000" rows="4"></textarea></label>
+          <label class="choice"><input type="checkbox" name="remember" value="1" checked> Remember this for the rest of this handoff, so it isn't asked again</label>
+          <div class="actions"><button class="primary">Send answer</button></div>
+        </form>
+      </section>`,
+    )}
+    ${
+      l
+        ? html`<section class="card">
+            <h2>Handoff · version ${l.version}</h2>
+            <p class="meta">From ${name(l.participant_id)} · ${fmtDate(l.created_at)}${l.change_note ? html` · ${l.change_note}` : ""}</p>
+            <div class="prose">${l.summary}</div>
+            ${list("Decisions made", l.decisions)}
+            ${list("Constraints", l.constraints)}
+            ${list("Open questions", l.open_questions)}
+            ${l.files.map((f) => html`<details class="file"><summary>${f.name}</summary><pre>${f.content}</pre></details>`)}
+            <details class="file"><summary>Charter: what the agents may decide</summary>
+              ${list("Agents may decide on their own", h.charter.may_decide)}
+              ${list("Always comes to a person", h.charter.always_ask)}
+              ${h.charter.decided.length ? html`<h3>Already decided by people</h3><ul>${h.charter.decided.map((d) => html`<li>${d.question} → ${d.answer} <span class="muted">(${d.by})</span></li>`)}</ul>` : ""}
+            </details>
+          </section>`
+        : ""
+    }
+    <section class="card">
+      <h2>Questions between the agents</h2>
+      ${h.questions.length ? "" : html`<p class="muted">None yet.</p>`}
+      <ol class="thread">
+        ${h.questions.map(
+          (q) => html`<li>
+            <p class="meta">Q${q.seq} · <strong>${name(q.asked_by)}</strong> → ${q.to_role} · ${fmtDate(q.created_at)} ·
+              ${q.status === "answered" ? html`<span class="pill approved">answered${q.answered_by_user ? " by a person" : ""}</span>` : q.status === "escalated" ? html`<span class="pill proposed">waiting on a person</span>` : html`<span class="pill open">open</span>`}</p>
+            <div class="prose">${q.body}</div>
+            ${q.answer ? html`<div class="answer prose">${q.answer}</div>` : ""}
+          </li>`,
+        )}
+      </ol>
+    </section>`;
 }

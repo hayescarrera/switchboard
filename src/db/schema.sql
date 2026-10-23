@@ -233,3 +233,56 @@ CREATE TRIGGER messages_append_only BEFORE UPDATE ON messages
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text;
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (lower(email)) WHERE email IS NOT NULL;
+
+-- ---------- Handoffs (milestone 1, 2026-10-23) ----------
+-- A handoff room: one side hands context to another; agents ask and answer without
+-- turn-taking; only escalations and the final result reach people.
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'meeting';
+ALTER TABLE rooms DROP CONSTRAINT IF EXISTS rooms_mode_check;
+ALTER TABLE rooms ADD CONSTRAINT rooms_mode_check CHECK (mode IN ('meeting', 'handoff'));
+
+CREATE TABLE IF NOT EXISTS charters (
+  room_id     uuid PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+  may_decide  jsonb NOT NULL DEFAULT '[]'::jsonb,   -- what agents may settle on their own
+  always_ask  jsonb NOT NULL DEFAULT '[]'::jsonb,   -- what always goes to a person
+  decided     jsonb NOT NULL DEFAULT '[]'::jsonb,   -- [{question, answer, by}] answers people asked to remember
+  created_at  timestamptz NOT NULL,
+  updated_at  timestamptz NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS handoffs (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id         uuid NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  participant_id  uuid NOT NULL REFERENCES participants(id),
+  version         integer NOT NULL,
+  summary         text NOT NULL,
+  decisions       jsonb NOT NULL DEFAULT '[]'::jsonb,
+  constraints     jsonb NOT NULL DEFAULT '[]'::jsonb,
+  open_questions  jsonb NOT NULL DEFAULT '[]'::jsonb,
+  files           jsonb NOT NULL DEFAULT '[]'::jsonb,   -- [{name, content}]
+  change_note     text,
+  created_at      timestamptz NOT NULL,
+  UNIQUE (room_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  room_id            uuid NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  seq                integer NOT NULL,
+  asked_by           uuid NOT NULL REFERENCES participants(id),
+  to_role            text NOT NULL,
+  body               text NOT NULL,
+  status             text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'escalated', 'answered')),
+  escalated_by       uuid REFERENCES participants(id),
+  escalation_reason  text,
+  answer             text,
+  answered_by        uuid REFERENCES participants(id),   -- the agent's seat that answered
+  answered_by_user   uuid REFERENCES users(id),          -- set when a person answered
+  asker_seen         boolean NOT NULL DEFAULT false,     -- the asking agent has picked up the answer
+  created_at         timestamptz NOT NULL,
+  answered_at        timestamptz,
+  UNIQUE (room_id, seq)
+);
+CREATE INDEX IF NOT EXISTS questions_room_idx ON questions (room_id, status);
+
+ALTER TABLE participants ADD COLUMN IF NOT EXISTS last_handoff_version integer NOT NULL DEFAULT 0;

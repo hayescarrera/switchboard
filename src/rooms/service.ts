@@ -58,6 +58,7 @@ export interface Room {
   current_participant_id: string | null;
   turn_started_at: Date;
   turn_timeout_seconds: number;
+  mode: "meeting" | "handoff";
   deadline: Date;
   created_at: Date;
   updated_at: Date;
@@ -73,6 +74,7 @@ export interface Seat {
   joined_at: Date;
   left_at: Date | null;
   last_read_turn: number;
+  last_handoff_version: number;
   // from the grant
   scopes: Scope[];
   grant_expires_at: Date;
@@ -122,6 +124,46 @@ export interface RoomView {
   ledger: LedgerLine[];
   /** Distinct humans who must approve a proposal. */
   approvers: { user_id: string; name: string }[];
+  /** Present on handoff rooms. */
+  handoff?: HandoffInfo;
+}
+
+export interface HandoffVersion {
+  id: string;
+  participant_id: string;
+  version: number;
+  summary: string;
+  decisions: string[];
+  constraints: string[];
+  open_questions: string[];
+  files: { name: string; content: string }[];
+  change_note: string | null;
+  created_at: Date;
+}
+
+export interface Question {
+  id: string;
+  seq: number;
+  asked_by: string;
+  to_role: string;
+  body: string;
+  status: "open" | "escalated" | "answered";
+  escalated_by: string | null;
+  escalation_reason: string | null;
+  answer: string | null;
+  answered_by: string | null;
+  answered_by_user: string | null;
+  answered_by_name: string | null;
+  asker_seen: boolean;
+  created_at: Date;
+  answered_at: Date | null;
+}
+
+export interface HandoffInfo {
+  charter: { may_decide: string[]; always_ask: string[]; decided: { question: string; answer: string; by: string }[] };
+  latest: HandoffVersion | null;
+  versions: number;
+  questions: Question[];
 }
 
 export interface AuditEntry {
@@ -170,16 +212,16 @@ const SEAT_SQL = `
 
 export class RoomService {
   constructor(
-    private readonly opts: { db: Db; clock: Clock; baseUrl: string },
+    protected readonly opts: { db: Db; clock: Clock; baseUrl: string },
   ) {}
 
-  private get db() {
+  protected get db() {
     return this.opts.db;
   }
   get pool(): Db {
     return this.opts.db;
   }
-  private now() {
+  protected now() {
     return this.opts.clock();
   }
 
@@ -209,20 +251,20 @@ export class RoomService {
 
   // ---------- loading ----------
 
-  private async lockRoom(tx: Tx, roomId: string): Promise<Room> {
+  protected async lockRoom(tx: Tx, roomId: string): Promise<Room> {
     if (!/^[0-9a-f-]{36}$/i.test(roomId)) throw new RoomError("not_found", "No room with that id.");
     const { rows } = await tx.query<Room>(`SELECT * FROM rooms WHERE id = $1 FOR UPDATE`, [roomId]);
     if (!rows[0]) throw new RoomError("not_found", "No room with that id.");
     return rows[0];
   }
 
-  private async seats(q: Queryable, roomId: string): Promise<Seat[]> {
+  protected async seats(q: Queryable, roomId: string): Promise<Seat[]> {
     const { rows } = await q.query<Seat>(`${SEAT_SQL} WHERE p.room_id = $1 ORDER BY p.position`, [roomId]);
     return rows;
   }
 
   /** The caller's seat in this room. Not seated, or seat no longer valid → not found / forbidden. */
-  private mySeat(seats: Seat[], caller: AgentCaller, need: Scope): Seat {
+  protected mySeat(seats: Seat[], caller: AgentCaller, need: Scope): Seat {
     const seat = seats.find((s) => s.connection_id === caller.connectionId && !s.left_at);
     // Same answer whether the room exists or not, so ids can't be probed.
     if (!seat) throw new RoomError("not_found", "No room with that id.");
@@ -234,7 +276,7 @@ export class RoomService {
     return seat;
   }
 
-  private nextSeat(seats: Seat[], fromId: string | null): Seat | null {
+  protected nextSeat(seats: Seat[], fromId: string | null): Seat | null {
     const now = this.now();
     const active = seats.filter((s) => isActive(s, now));
     if (active.length === 0) return null;
@@ -251,7 +293,7 @@ export class RoomService {
    * Apply anything that became due since the room was last touched: the deadline,
    * then turn timeouts. Mutates and saves `room`.
    */
-  private async refresh(tx: Tx, room: Room, seats: Seat[]): Promise<void> {
+  protected async refresh(tx: Tx, room: Room, seats: Seat[]): Promise<void> {
     const now = this.now();
     if (room.status === "approved" || room.status === "closed") return;
 
@@ -260,6 +302,7 @@ export class RoomService {
       return;
     }
     if (room.status !== "open") return;
+    if (room.mode === "handoff") return; // no turn-taking in handoff rooms
 
     const active = seats.filter((s) => isActive(s, now));
     const current = seats.find((s) => s.id === room.current_participant_id);
@@ -295,7 +338,7 @@ export class RoomService {
     await this.save(tx, room);
   }
 
-  private async close(tx: Tx, room: Room, reason: string): Promise<void> {
+  protected async close(tx: Tx, room: Room, reason: string): Promise<void> {
     room.status = "closed";
     room.close_reason = reason;
     await this.save(tx, room);
@@ -303,7 +346,7 @@ export class RoomService {
     await this.audit(tx, { roomId: room.id, action: "room.closed", result: "ok", detail: { reason } });
   }
 
-  private async save(tx: Tx, room: Room): Promise<void> {
+  protected async save(tx: Tx, room: Room): Promise<void> {
     room.updated_at = this.now();
     await tx.query(
       `UPDATE rooms SET status=$2, close_reason=$3, turns_used=$4, current_participant_id=$5,
@@ -321,14 +364,14 @@ export class RoomService {
     );
   }
 
-  private async ledger(tx: Tx, room: Room, seat: Seat, action: string, turnNo: number, est: number) {
+  protected async ledger(tx: Tx, room: Room, seat: Seat, action: string, turnNo: number, est: number) {
     await tx.query(
       `INSERT INTO ledger (room_id, participant_id, action, turn_no, est_tokens, at) VALUES ($1,$2,$3,$4,$5,$6)`,
       [room.id, seat.id, action, turnNo, est, this.now()],
     );
   }
 
-  private async seatParticipant(
+  protected async seatParticipant(
     tx: Tx,
     room: Room,
     args: { userId: string; connectionId: string; role: string; scopes: Scope[]; grantedBy: string },
@@ -569,11 +612,17 @@ export class RoomService {
     });
   }
 
-  private assertMyTurn(room: Room, seats: Seat[], me: Seat) {
+  /** Overridden by the handoff service. */
+  protected async handoffInfo(_q: Queryable, _roomId: string): Promise<HandoffInfo | undefined> {
+    return undefined;
+  }
+
+  protected assertMyTurn(room: Room, seats: Seat[], me: Seat) {
     if (room.status === "proposed") {
       throw new RoomError("closed", "A proposal is waiting for the humans to approve. Nothing more can be posted.");
     }
     if (room.status !== "open") throw new RoomError("closed", `This room is ${room.status}: ${room.close_reason ?? ""}`.trim());
+    if (room.mode === "handoff") return; // anyone seated may post or propose; limits still apply
     const now = this.now();
     if (seats.filter((s) => isActive(s, now)).length < 2) {
       throw new RoomError("not_your_turn", "Nobody else has joined yet. Wait for the invited side to join, then read_room again.");
@@ -772,13 +821,13 @@ export class RoomService {
 
   // ---------- views ----------
 
-  private approvers(seats: Seat[]) {
+  protected approvers(seats: Seat[]) {
     const seen = new Map<string, string>();
     for (const s of seats) if (!s.left_at && !s.grant_revoked_at) seen.set(s.user_id, s.user_name);
     return [...seen].map(([user_id, name]) => ({ user_id, name }));
   }
 
-  private async view(q: Queryable, room: Room, seats: Seat[], me: Seat | null): Promise<RoomView> {
+  protected async view(q: Queryable, room: Room, seats: Seat[], me: Seat | null): Promise<RoomView> {
     const { rows: messages } = await q.query<Message>(
       `SELECT id, participant_id, turn_no, body, attachments, next_role, created_at
          FROM messages WHERE room_id = $1 ORDER BY turn_no`,
@@ -818,6 +867,7 @@ export class RoomService {
       proposals: proposals.map((p) => ({ ...p, decisions: decisions.filter((d) => d.proposal_id === p.id) })),
       ledger: lines,
       approvers: this.approvers(seats),
+      handoff: room.mode === "handoff" ? await this.handoffInfo(q, room.id) : undefined,
     };
   }
 }

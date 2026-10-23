@@ -43,6 +43,18 @@ export function nextStep(v: RoomView, now: Date, roomUrl: string): string {
       `Agents can't approve. Tell your user to open ${roomUrl} and approve or reject it. Nothing more can be posted.`
     );
   }
+  if (room.mode === "handoff" && v.handoff) {
+    if (active.length < 2) {
+      return "Waiting for the other side to join (they open the join link and pick their agent). You can already update_handoff or ask questions; they'll see them when they join.";
+    }
+    const mine = v.handoff.questions.filter((q) => me && q.to_role === me.role && q.status === "open");
+    const waiting = v.handoff.questions.filter((q) => q.status === "escalated");
+    if (mine.length) {
+      return `${mine.length} question(s) for you (${mine.map((q) => `Q${q.seq}`).join(", ")}). Answer each from the handoff, the charter and your own context with answer. If one needs a decision outside the charter or you aren't sure, escalate it to your person instead of guessing.`;
+    }
+    if (waiting.length) return `${waiting.length} question(s) are waiting on a person. Keep working on anything else, or tell your user what's waiting.`;
+    return "Do your part: ask the other side anything you need (ask), keep the handoff current (update_handoff), and when the work is done, propose the result for the people to approve.";
+  }
   if (active.length < 2) {
     const open = room.planned_roles.filter((r) => !seats.some((s) => s.role === r));
     return (
@@ -79,13 +91,13 @@ export function formatRoom(v: RoomView, opts: { now: Date; roomUrl: string; sinc
   const since = opts.sinceTurn ?? 0;
 
   const out: string[] = [];
-  out.push(`SWITCHBOARD ROOM ${room.id}`);
+  out.push(`TEKHNEA ${room.mode === "handoff" ? "HANDOFF" : "ROOM"} ${room.id}`);
   out.push(STANDING_NOTE);
   out.push("");
   out.push(`Status: ${room.status}${room.close_reason ? ` (${room.close_reason})` : ""}`);
-  out.push(`Turns used: ${room.turns_used} of ${room.turn_limit} · Deadline: ${room.deadline.toISOString()}`);
+  out.push(`${room.mode === "handoff" ? "Actions used" : "Turns used"}: ${room.turns_used} of ${room.turn_limit} · Deadline: ${room.deadline.toISOString()}`);
   if (me) out.push(`Your seat: ${me.role} · you may: ${me.scopes.join(", ")}`);
-  if (room.status === "open") out.push(`Whose turn: ${current ? who(current.id) : "nobody yet"}`);
+  if (room.status === "open" && room.mode !== "handoff") out.push(`Whose turn: ${current ? who(current.id) : "nobody yet"}`);
   out.push(
     `Seats: ${seats
       .map((s) => `${who(s.id)}${s.grant_revoked_at ? " [removed]" : s.left_at ? " [left]" : ""}`)
@@ -101,6 +113,52 @@ export function formatRoom(v: RoomView, opts: { now: Date; roomUrl: string; sinc
   out.push("");
   out.push("GOAL");
   out.push(wrap(`room owner ${owner ? owner.user_name : ""}`.trim(), room.goal));
+
+  const h = v.handoff;
+  if (h) {
+    const list = (title: string, items: string[]) => (items.length ? `${title}:\n${items.map((i) => `- ${i}`).join("\n")}` : "");
+    out.push("");
+    out.push("CHARTER (set by the person who started this handoff)");
+    out.push(
+      wrap(
+        `room owner ${owner ? owner.user_name : ""}`.trim(),
+        [
+          list("Agents may decide on their own", h.charter.may_decide) || "Agents may decide on their own: nothing listed; ask before deciding anything material.",
+          list("Always ask a person", h.charter.always_ask),
+          h.charter.decided.length ? `Already decided by people:\n${h.charter.decided.map((d) => `- ${d.question} → ${d.answer} (${d.by})`).join("\n")}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+    );
+    if (h.latest) {
+      const l = h.latest;
+      out.push("");
+      out.push(`HANDOFF version ${l.version} of ${h.versions} · by ${who(l.participant_id)}${l.change_note ? ` · change: ${attr(l.change_note)}` : ""}`);
+      out.push(
+        wrap(
+          who(l.participant_id),
+          [`Summary: ${l.summary}`, list("Decisions made", l.decisions), list("Constraints", l.constraints), list("Open questions", l.open_questions)]
+            .filter(Boolean)
+            .join("\n"),
+        ),
+      );
+      for (const f of l.files) {
+        out.push(`File "${attr(f.name)}":`);
+        out.push(wrap(`${who(l.participant_id)}, file ${f.name}`, f.content));
+      }
+    }
+    out.push("");
+    out.push(`QUESTIONS (${h.questions.length})`);
+    if (!h.questions.length) out.push("(none)");
+    for (const q of h.questions) {
+      const state =
+        q.status === "answered" ? `answered${q.answered_by_user ? ` by ${q.answered_by_name} (a person)` : " by an agent"}` : q.status === "escalated" ? "waiting on a person" : `open, for ${q.to_role}`;
+      out.push(`Q${q.seq} · id ${q.id} · from ${who(q.asked_by)} to ${q.to_role} · ${state}`);
+      out.push(wrap(who(q.asked_by), q.body));
+      if (q.answer) out.push(wrap(q.answered_by ? who(q.answered_by) : q.to_role, q.answer));
+    }
+  }
 
   const msgs = v.messages.filter((m) => m.turn_no > since);
   out.push("");

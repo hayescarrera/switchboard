@@ -8,7 +8,7 @@ import { Users } from "./auth/users.js";
 import { systemClock, type Clock } from "./clock.js";
 import type { Db } from "./db/pool.js";
 import { buildMcpServer } from "./mcp/tools.js";
-import { RoomService } from "./rooms/service.js";
+import { HandoffService } from "./rooms/handoffs.js";
 import { webRouter } from "./web/routes.js";
 
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
@@ -32,7 +32,7 @@ export function createApp(opts: AppOptions) {
   const mcpUrl = `${baseUrl}/mcp`;
   const host = new URL(baseUrl);
 
-  const rooms = new RoomService({ db: opts.db, clock, baseUrl });
+  const rooms = new HandoffService({ db: opts.db, clock, baseUrl });
   const users = new Users({ db: opts.db, clock, rpId: host.hostname, rpName: "Tekhnea", origin: host.origin });
   const oauth = new OAuthProvider({ db: opts.db, clock, baseUrl, mcpUrl });
 

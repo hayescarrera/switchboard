@@ -153,7 +153,7 @@ describe("first test: Claude + ChatGPT draft the onboarding checklist", () => {
 
     const tools = await claude.client.listTools();
     expect(tools.tools.map((t) => t.name).sort()).toEqual(
-      ["approve", "create_room", "invite", "list_rooms", "post", "propose", "read_room"].sort(),
+      ["answer", "approve", "ask", "create_room", "escalate", "handoff", "invite", "list_rooms", "my_inbox", "post", "propose", "read_room", "update_handoff"].sort(),
     );
 
     // 1. Claude opens the room.
@@ -369,5 +369,141 @@ describe("email + password sign-in", () => {
     expect(signUp.headers.get("location")).toBe(connect);
     const consent = await (await fetch(`${base}${connect}`, { headers: { cookie: cookieOf(signUp) } })).text();
     expect(consent).toContain("Connect Claude?");
+  });
+});
+
+describe("milestone 1: handoff between two people", () => {
+  async function join(human: { cookie: string }, joinUrl: string, agentLabel: string) {
+    const page = await (await fetch(joinUrl, { headers: { cookie: human.cookie } })).text();
+    const esc = agentLabel.replace(/'/g, "&#39;");
+    const m = page.match(new RegExp(`name="connection" value="([0-9a-f-]{36})"[^>]*>\\s*<strong>${esc}`));
+    expect(m, "agent listed on join page").toBeTruthy();
+    const r = await fetch(joinUrl, {
+      method: "POST",
+      redirect: "manual",
+      headers: { cookie: human.cookie, origin: base, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ connection: m![1]! }),
+    });
+    expect(r.status).toBe(303);
+  }
+  const qid = (t: string, n: number) => [...t.matchAll(/question id ([0-9a-f-]{36})/g)].at(n - 1)![1]!;
+
+  it("hands off, answers from context, escalates one decision to a person, and ends approved by both", async () => {
+    const ben = await signedIn("Ben");
+    const dana = await signedIn("Dana");
+    const claude = await mcp((await connectAgent(ben, "Claude", "Ben's Claude")).tokens.access_token);
+    const cursor = await mcp((await connectAgent(dana, "Cursor", "Dana's Cursor")).tokens.access_token);
+
+    // A thin handoff is sent back with what's missing.
+    const thin = await claude.call("handoff", { to_role: "developer", goal: "Build CSV import", summary: "Build it." });
+    expect(thin.isError).toBe(true);
+    expect(thin.text).toMatch(/too thin/);
+
+    const h = await claude.call("handoff", {
+      to_role: "developer",
+      my_role: "product",
+      goal: "Ship CSV import for customer lists in the onboarding flow.",
+      summary:
+        "Customers keep asking to bring their contact lists in during onboarding. We agreed on a CSV upload on the second onboarding screen, mapped to our contact fields, with a preview before saving.",
+      decisions: ["CSV only for v1, no Excel", "Preview the first 20 rows before saving"],
+      constraints: ["Max file 10 MB", "Must ship before the Nov 15 release"],
+      open_questions: ["What happens to duplicate emails?"],
+      may_decide: ["Column-mapping UI details", "Error message wording"],
+      always_ask: ["Anything that changes scope or the release date"],
+    });
+    expect(h.isError).toBe(false);
+    const roomId = h.text.match(/Handoff created: ([0-9a-f-]{36})/)![1]!;
+    const joinUrl = h.text.match(/(http:\/\/\S+\/join\/\S+)/)![1]!;
+    await join(dana, joinUrl, "Dana's Cursor");
+
+    // Dana's agent picks it up and asks two things.
+    const inbox1 = await cursor.call("my_inbox");
+    expect(inbox1.text).toContain("HANDOFF UPDATED");
+    const read = await cursor.call("read_room", { room_id: roomId });
+    expect(read.text).toContain("TEKHNEA HANDOFF");
+    expect(read.text).toContain("Preview the first 20 rows");
+    expect(read.text).toContain("Column-mapping UI details");
+    await cursor.call("ask", { room_id: roomId, question: "Should the preview show all 20 rows or paginate by 10?" });
+    await cursor.call("ask", { room_id: roomId, question: "Can we push the release to Nov 22 to add XLSX support too?" });
+
+    // Ben's agent: answers the in-charter one, escalates the scope/date one.
+    const inbox2 = await claude.call("my_inbox");
+    expect(inbox2.text.match(/QUESTION FOR YOU/g)).toHaveLength(2);
+    const q1 = qid(inbox2.text, 1), q2 = qid(inbox2.text, 2);
+    expect((await cursor.call("answer", { room_id: roomId, question_id: q1, answer: "me" })).text).toMatch(/for the product role/);
+    await claude.call("answer", { room_id: roomId, question_id: q1, answer: "Show all 20 on one screen; it's a preview, not a table." });
+    const esc = await claude.call("escalate", { room_id: roomId, question_id: q2, reason: "Changes the release date and scope; charter says ask." });
+    expect(esc.text).toMatch(/waiting on Ben/);
+    expect((await claude.call("answer", { room_id: roomId, question_id: q2, answer: "sure" })).isError).toBe(true);
+    expect((await cursor.call("propose", { room_id: roomId, summary: "early" })).text).toMatch(/waiting on a person/);
+
+    // Ben sees it on his room page and answers; Dana can't answer it for him.
+    const roomPage = await (await fetch(`${base}/rooms/${roomId}`, { headers: { cookie: ben.cookie } })).text();
+    expect(roomPage).toContain("Waiting on you: question 2");
+    const danaPage = await (await fetch(`${base}/rooms/${roomId}`, { headers: { cookie: dana.cookie } })).text();
+    expect(danaPage).not.toContain("Waiting on you");
+    const send = (who: { cookie: string }) =>
+      fetch(`${base}/rooms/${roomId}/questions/${q2}/answer`, {
+        method: "POST",
+        redirect: "manual",
+        headers: { cookie: who.cookie, origin: base, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ answer: "No. Nov 15 stands; XLSX goes to the next release.", remember: "1" }),
+      });
+    expect((await send(dana)).status).toBe(400);
+    expect((await send(ben)).status).toBe(303);
+
+    // Dana's agent gets both answers, one marked as from a person; the decision is remembered.
+    const inbox3 = await cursor.call("my_inbox");
+    expect(inbox3.text.match(/ANSWER TO YOUR QUESTION/g)).toHaveLength(2);
+    expect(inbox3.text).toContain("from Ben, a person");
+    expect((await cursor.call("my_inbox")).text).not.toContain("ANSWER TO YOUR QUESTION"); // picked up once
+    const read2 = await cursor.call("read_room", { room_id: roomId });
+    expect(read2.text).toContain("Already decided by people");
+    expect(read2.text).toContain("Nov 15 stands");
+
+    // Handoff update, then the result; both people approve.
+    const upd = await claude.call("update_handoff", {
+      room_id: roomId,
+      summary: "Same as v1, plus: duplicates by email are merged, keeping the newest row. Everything else unchanged.",
+      decisions: ["CSV only for v1, no Excel", "Preview the first 20 rows before saving", "Duplicate emails merge, newest row wins"],
+      constraints: ["Max file 10 MB", "Must ship before the Nov 15 release"],
+      change_note: "Decided duplicate handling",
+    });
+    expect(upd.text).toContain("version 2");
+    expect((await cursor.call("my_inbox")).text).toContain("version 2: Decided duplicate handling");
+    const prop = await cursor.call("propose", {
+      room_id: roomId,
+      summary: "CSV import on onboarding screen 2: 10 MB limit, 20-row preview, duplicates merge by email. Ships Nov 15.",
+      changes: ["Upload + column mapping", "Preview screen", "Duplicate merge"],
+    });
+    expect(prop.text).toMatch(/Ben, Dana|Dana, Ben/);
+    for (const who of [ben, dana]) {
+      const pageHtml = await (await fetch(`${base}/rooms/${roomId}`, { headers: { cookie: who.cookie } })).text();
+      const pid = pageHtml.match(/proposals\/([0-9a-f-]{36})\/decide/)![1]!;
+      await fetch(`${base}/rooms/${roomId}/proposals/${pid}/decide`, {
+        method: "POST",
+        redirect: "manual",
+        headers: { cookie: who.cookie, origin: base, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ decision: "approve" }),
+      });
+    }
+    expect((await claude.call("read_room", { room_id: roomId })).text).toContain("Status: approved");
+  });
+
+  it("keeps strangers out and refuses wrong-role answers", async () => {
+    const ben = await signedIn("Ben");
+    const eve = await signedIn("Eve");
+    const claude = await mcp((await connectAgent(ben, "Claude", "Ben's Claude")).tokens.access_token);
+    const evil = await mcp((await connectAgent(eve, "Grok", "Eve's Grok")).tokens.access_token);
+    const h = await claude.call("handoff", {
+      to_role: "developer",
+      goal: "Secret feature",
+      summary: "A confidential plan that only the invited developer should ever see, with enough words to pass the check.",
+      decisions: ["Keep it quiet"],
+    });
+    const roomId = h.text.match(/Handoff created: ([0-9a-f-]{36})/)![1]!;
+    expect((await evil.call("read_room", { room_id: roomId })).text).toMatch(/No room with that id/);
+    expect((await evil.call("ask", { room_id: roomId, question: "What is it?" })).text).toMatch(/No room with that id/);
+    expect((await evil.call("my_inbox")).text).toContain("Nothing waiting");
   });
 });

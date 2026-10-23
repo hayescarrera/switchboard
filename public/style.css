@@ -73,3 +73,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); pad
 .decision { border-color: var(--accent); border-width: 2px; }
 .past + .past { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 @media (max-width: 480px) { h1 { font-size: 1.35rem; } .card { padding: 16px; } }
+textarea { font: inherit; width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); margin-top: 4px; resize: vertical; }
+.answer { margin-top: 8px; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--turn); border-radius: 0 8px 8px 0; }
+input[type=checkbox] { width: auto; margin: 0 8px 0 0; }
+.spaced { margin-top: 16px; }
