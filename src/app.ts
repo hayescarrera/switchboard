@@ -33,7 +33,7 @@ export function createApp(opts: AppOptions) {
   const host = new URL(baseUrl);
 
   const rooms = new RoomService({ db: opts.db, clock, baseUrl });
-  const users = new Users({ db: opts.db, clock, rpId: host.hostname, rpName: "Switchboard", origin: host.origin });
+  const users = new Users({ db: opts.db, clock, rpId: host.hostname, rpName: "Tekhnea", origin: host.origin });
   const oauth = new OAuthProvider({ db: opts.db, clock, baseUrl, mcpUrl });
 
   const app = express();
@@ -63,7 +63,7 @@ export function createApp(opts: AppOptions) {
       baseUrl: new URL(baseUrl),
       resourceServerUrl: new URL(mcpUrl),
       scopesSupported: SUPPORTED_SCOPES,
-      resourceName: "Switchboard rooms",
+      resourceName: "Tekhnea rooms",
       authorizationOptions: limits,
       clientRegistrationOptions: limits,
       tokenOptions: limits,

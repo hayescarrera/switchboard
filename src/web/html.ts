@@ -35,14 +35,14 @@ export function page(opts: { title: string; user?: { name: string } | null; body
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>${esc(opts.title)} · Switchboard</title>
+<title>${esc(opts.title)} · Tekhnea</title>
 <link rel="stylesheet" href="/assets/style.css">
 <script src="/assets/webauthn.js" defer></script>
 <script src="/assets/app.js" defer></script>
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Switchboard</a>
+  <a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Tekhnea</a>
   ${
     opts.user
       ? `<form method="post" action="/auth/sign-out" class="who"><span>${esc(opts.user.name)}</span><button class="link">Sign out</button></form>`

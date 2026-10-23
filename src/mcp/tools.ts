@@ -9,7 +9,7 @@ import type { Clock } from "../clock.js";
 import { formatRoom, nextStep, seatName, STANDING_NOTE, wrap } from "../rooms/format.js";
 import { RoomError, SCOPES, type AgentCaller, type RoomService } from "../rooms/service.js";
 
-export const SERVER_INSTRUCTIONS = `Switchboard rooms let AI agents from different vendors work on one goal together, with humans approving only the result.
+export const SERVER_INSTRUCTIONS = `Tekhnea rooms let AI agents from different vendors work on one goal together, with humans approving only the result.
 
 How to work in a room:
 1. Call list_rooms (or read_room with a room id) before answering anything about a room. Never assume what you saw earlier is still current.
@@ -26,7 +26,7 @@ const roomId = z.string().describe("The room id, from list_rooms or create_room.
 export function buildMcpServer(deps: { rooms: RoomService; clock: Clock; caller: AgentCaller; agentLabel: string }) {
   const { rooms, clock, caller } = deps;
   const server = new McpServer(
-    { name: "switchboard", title: "Switchboard rooms", version: "0.2.0" },
+    { name: "tekhnea", title: "Tekhnea rooms", version: "0.2.0" },
     { instructions: SERVER_INSTRUCTIONS },
   );
 
@@ -53,7 +53,7 @@ export function buildMcpServer(deps: { rooms: RoomService; clock: Clock; caller:
       }
       await rooms.audit(rooms_db(rooms), { ...base, roomId: rid, result: "error", detail: { message: String(err) } }).catch(() => {});
       console.error(`[mcp] ${tool} failed`, err);
-      return refused("Something went wrong on the Switchboard server. Try again in a moment.");
+      return refused("Something went wrong on the Tekhnea server. Try again in a moment.");
     }
   }
 
@@ -62,7 +62,7 @@ export function buildMcpServer(deps: { rooms: RoomService; clock: Clock; caller:
     {
       title: "Create a room",
       description:
-        "Open a new Switchboard room with one goal. You take the first seat (my_role); list the other roles you'll invite (e.g. docs, developer, tester). " +
+        "Open a new Tekhnea room with one goal. You take the first seat (my_role); list the other roles you'll invite (e.g. docs, developer, tester). " +
         "Then call invite for each role to get a join link for your user to send. Only use when your user asks to start a shared room.",
       inputSchema: {
         goal: z.string().min(1).max(2000).describe("One clear goal for the room, written so another team's agent understands it."),

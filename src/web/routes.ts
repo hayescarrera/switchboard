@@ -115,7 +115,7 @@ export function webRouter(deps: WebDeps): express.Router {
           narrow: true,
           body: html`
             <h1>Your agents, in one room</h1>
-            <p class="sub">Switchboard lets your Claude, your ChatGPT, or someone else's agent work on one goal together. You approve only the result.</p>
+            <p class="sub">Tekhnea lets your Claude, your ChatGPT, or someone else's agent work on one goal together. You approve only the result.</p>
             ${signInBlock("Sign in to see your rooms and connected agents.")}`,
         }),
       );
@@ -135,7 +135,7 @@ export function webRouter(deps: WebDeps): express.Router {
                     (v) => html`<li><a href="/rooms/${v.room.id}">${v.room.goal.slice(0, 140)}</a>
                       <span class="pill ${v.room.status}">${statusWord(v)}</span></li>`,
                   )}</ul>`
-                : html`<p class="muted">No rooms yet. Ask one of your connected agents to “create a Switchboard room” for a goal.</p>`
+                : html`<p class="muted">No rooms yet. Ask one of your connected agents to “create a Tekhnea room” for a goal.</p>`
             }
           </section>
           <section class="card">
@@ -147,7 +147,7 @@ export function webRouter(deps: WebDeps): express.Router {
                       <form method="post" action="/agents/${c.id}/disconnect" data-confirm="Disconnect ${c.label}? Its tokens stop working and it leaves its rooms.">
                         <button class="link danger">Disconnect</button></form></li>`,
                   )}</ul>`
-                : html`<p class="muted">None yet. Add Switchboard to your AI app with the address below.</p>`
+                : html`<p class="muted">None yet. Add Tekhnea to your AI app with the address below.</p>`
             }
             ${connectHelp(mcpUrl)}
           </section>
@@ -177,7 +177,7 @@ export function webRouter(deps: WebDeps): express.Router {
           title: "Link expired",
           narrow: true,
           user: req.user,
-          body: html`<h1>This connect link has expired</h1><p>Go back to your AI app and start connecting Switchboard again.</p>`,
+          body: html`<h1>This connect link has expired</h1><p>Go back to your AI app and start connecting Tekhnea again.</p>`,
         }),
       );
     }
@@ -188,7 +188,7 @@ export function webRouter(deps: WebDeps): express.Router {
         page({
           title: "Connect",
           narrow: true,
-          body: html`<h1>Connect ${app}</h1>${signInBlock(`Sign in so ${app} can act as your agent in Switchboard rooms.`)}`,
+          body: html`<h1>Connect ${app}</h1>${signInBlock(`Sign in so ${app} can act as your agent in Tekhnea rooms.`)}`,
         }),
       );
     }
@@ -201,7 +201,7 @@ export function webRouter(deps: WebDeps): express.Router {
         body: html`
           <h1>Connect ${app}?</h1>
           <section class="card">
-            <p><strong>${app}</strong> (returns to <code>${back}</code>) wants to be your agent in Switchboard rooms.</p>
+            <p><strong>${app}</strong> (returns to <code>${back}</code>) wants to be your agent in Tekhnea rooms.</p>
             <p>It will be able to create rooms, read the rooms you seat it in, and post and propose there on its turn.
                It can't approve anything or accept invites; only you can, here.</p>
             <form method="post" action="/connect/${pending.id}" class="stack">
@@ -271,7 +271,7 @@ export function webRouter(deps: WebDeps): express.Router {
         </form>
         <section class="card">${connectHelp(mcpUrl)}</section>`
       : html`<section class="card"><h2>First, connect your AI</h2>
-          <p>You don't have an agent connected yet. Add Switchboard to Claude or ChatGPT, then come back and reload this page. The link stays valid.</p>
+          <p>You don't have an agent connected yet. Add Tekhnea to Claude or ChatGPT, then come back and reload this page. The link stays valid.</p>
           ${connectHelp(mcpUrl)}</section>`;
     res.send(page({ title: "Join", narrow: true, user: req.user, body: html`<h1>Join a room</h1>${summary}${body}` }));
   });
@@ -329,7 +329,7 @@ export function webRouter(deps: WebDeps): express.Router {
     if (!req.user) return res.status(401).json({ error: "Sign in first." });
     try {
       const rows = await rooms.exportAudit(req.user.id, String(req.params.id));
-      res.setHeader("Content-Disposition", `attachment; filename="switchboard-room-${req.params.id}-audit.json"`);
+      res.setHeader("Content-Disposition", `attachment; filename="tekhnea-room-${req.params.id}-audit.json"`);
       res.json({ room_id: req.params.id, exported_at: new Date().toISOString(), entries: rows });
     } catch (err) {
       if (!(err instanceof RoomError)) throw err;
@@ -351,7 +351,7 @@ function connectHelp(mcpUrl: string): Html {
   return html`
     <details class="help">
       <summary>How to connect an AI app</summary>
-      <p class="label">Switchboard's connector address</p>
+      <p class="label">Tekhnea's connector address</p>
       <p><code class="copy" data-copy>${mcpUrl}</code></p>
       <ol>
         <li><strong>Claude</strong> (Free, Pro, Max): Customize → Connectors → Add custom connector → paste the address → Add, then Connect and sign in here.

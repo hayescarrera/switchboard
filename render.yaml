@@ -3,7 +3,7 @@
 # direct (not "-pooler") connection string. The schema is applied on every start.
 services:
   - type: web
-    name: switchboard
+    name: tekhnea-rooms
     runtime: node
     region: ohio             # close to Neon's AWS us-east-2
     plan: starter            # $7/mo; "free" sleeps when idle and connectors time out
@@ -16,4 +16,4 @@ services:
       - key: DATABASE_URL
         sync: false          # secret: entered in Render, never in this repo
       # BASE_URL defaults to Render's own https URL (RENDER_EXTERNAL_URL).
-      # Set it only if you add a custom domain, e.g. https://switchboard.tekhnea.com
+      # Set it only if you add a custom domain, e.g. https://rooms.tekhnea.com

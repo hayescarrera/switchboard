@@ -1,5 +1,5 @@
 export interface Config {
-  /** Public origin, e.g. https://switchboard.onrender.com. No trailing slash. */
+  /** Public origin, e.g. https://tekhnea-rooms.onrender.com. No trailing slash. */
   baseUrl: string;
   databaseUrl: string;
   port: number;

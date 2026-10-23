@@ -148,3 +148,4 @@ Tekhnea relationship: separate product and repo. Shared ideas (sign-in, MCP fram
 - 2026-10-23 — Browser check found that `Referrer-Policy: no-referrer` makes browsers send `Origin: null` on our own forms, which the same-origin check refused. Now `same-origin`, and `Origin: null` falls back to `Sec-Fetch-Site`.
 - 2026-10-23 — Production runs TypeScript through tsx (`node --import tsx`), like Tekhnea's API: no build output to keep in sync with schema.sql and public/.
 - 2026-10-23 — Ben: database on Neon (free tier, separate project from Tekhnea) instead of Render Postgres; server on Render Starter. ~$7/mo total.
+- 2026-10-23 — Ben: one product name. Everything people see says Tekhnea (web pages, passkey name, MCP server name "tekhnea", connector resource name "Tekhnea rooms"); Render service is `tekhnea-rooms`. Repo and code names stay `switchboard` for now. Rooms are Tekhnea's agent-to-agent feature.

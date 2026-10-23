@@ -8,5 +8,5 @@ const db = createPool(config.databaseUrl);
 await migrate(db);
 const { app } = createApp({ db, baseUrl: config.baseUrl, trustProxyHops: config.trustProxyHops });
 app.listen(config.port, () => {
-  console.log(`Switchboard listening on ${config.port} · ${config.baseUrl} · connector address ${config.baseUrl}/mcp`);
+  console.log(`Tekhnea listening on ${config.port} · ${config.baseUrl} · connector address ${config.baseUrl}/mcp`);
 });
