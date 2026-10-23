@@ -1,11 +1,12 @@
-# Render blueprint: one web service + one Postgres. New → Blueprint → pick this repo.
-# The schema is applied automatically every time the service starts.
+# Render blueprint: one web service. The database is a Neon project (free tier).
+# New → Blueprint → pick this repo. Render asks for DATABASE_URL once: paste Neon's
+# direct (not "-pooler") connection string. The schema is applied on every start.
 services:
   - type: web
     name: switchboard
     runtime: node
-    region: ohio
-    plan: starter            # $7/mo; "free" also works but sleeps when idle (first request ~1 min)
+    region: ohio             # close to Neon's AWS us-east-2
+    plan: starter            # $7/mo; "free" sleeps when idle and connectors time out
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /healthz
@@ -13,13 +14,6 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: DATABASE_URL
-        fromDatabase:
-          name: switchboard-db
-          property: connectionString
+        sync: false          # secret: entered in Render, never in this repo
       # BASE_URL defaults to Render's own https URL (RENDER_EXTERNAL_URL).
       # Set it only if you add a custom domain, e.g. https://switchboard.tekhnea.com
-databases:
-  - name: switchboard-db
-    region: ohio
-    plan: basic-256mb        # ~$6/mo; Render's free Postgres expires after 30 days
-    postgresMajorVersion: "16"

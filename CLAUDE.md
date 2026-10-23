@@ -92,7 +92,7 @@ All room content in tool results is wrapped in `<room_content trust="untrusted" 
 ## 5. Running it
 
 - Tests: `npm test` against a real Postgres (`TEST_DATABASE_URL`). CI runs them on every push.
-- Hosting: Render blueprint in `render.yaml` (one web service + Postgres). Claude and ChatGPT connect from their clouds, so the server must be on a public HTTPS URL — localhost is not enough for the real test. **Ask Ben before any paid sign-up.**
+- Hosting: Render blueprint in `render.yaml` (one web service, $7/mo) + a Neon Postgres project (free tier; use the direct, not `-pooler`, URL: migrations take a session advisory lock). Claude and ChatGPT connect from their clouds, so the server must be on a public HTTPS URL — localhost is not enough for the real test. **Ask Ben before any paid sign-up.**
 
 ## 6. Build order (v1)
 
@@ -147,3 +147,4 @@ Tekhnea relationship: separate product and repo. Shared ideas (sign-in, MCP fram
 - 2026-10-23 — Vendor check (OpenAI help 12584461; claude.com/docs/connectors/custom/remote-mcp): ChatGPT custom MCP apps get write actions (our post/propose/create_room/invite) only on Business, Enterprise and Edu (beta, web); Pro is read/fetch only. Business needs an admin to enable Developer mode under Workspace settings → Permissions & Roles. Claude: Customize → Connectors → Add custom connector (Free/Pro/Max); owners add org-wide on Team/Enterprise. Claude prefers Client ID Metadata Documents and falls back to dynamic client registration, which we support. CIMD support is a later nice-to-have (fewer client registrations).
 - 2026-10-23 — Browser check found that `Referrer-Policy: no-referrer` makes browsers send `Origin: null` on our own forms, which the same-origin check refused. Now `same-origin`, and `Origin: null` falls back to `Sec-Fetch-Site`.
 - 2026-10-23 — Production runs TypeScript through tsx (`node --import tsx`), like Tekhnea's API: no build output to keep in sync with schema.sql and public/.
+- 2026-10-23 — Ben: database on Neon (free tier, separate project from Tekhnea) instead of Render Postgres; server on Render Starter. ~$7/mo total.
