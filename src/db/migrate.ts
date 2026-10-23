@@ -4,14 +4,24 @@ import { createPool, type Db } from "./pool.js";
 
 const schemaPath = fileURLToPath(new URL("./schema.sql", import.meta.url));
 
-/** Create or update the hub's tables. Safe to run more than once. */
+/** Apply the schema. Every statement is idempotent, so this is safe on every boot. */
 export async function migrate(db: Db): Promise<void> {
-  await db.query(readFileSync(schemaPath, "utf8"));
+  const sql = readFileSync(schemaPath, "utf8");
+  const client = await db.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock(726101)");
+    await client.query(sql);
+  } finally {
+    await client.query("SELECT pg_advisory_unlock(726101)").catch(() => {});
+    client.release();
+  }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const db = createPool();
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set");
+  const db = createPool(url);
   await migrate(db);
   await db.end();
-  console.log("Database is up to date.");
+  console.log("Schema applied.");
 }
