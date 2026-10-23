@@ -101,7 +101,7 @@ All room content in tool results is wrapped in `<room_content trust="untrusted" 
 - [x] Join page and approve page (passkey sign-in)
 - [x] Turn rules, turn limit, ledger
 - [x] Untrusted-content labeling and audit log
-- [ ] Deploy (Render) — waits on Ben's sign-up
+- [x] Deploy: https://tekhnea-rooms.onrender.com (Render Starter, branch claude/relay-rooms-v1, public-repo blueprint so no auto-deploy; Neon project autumn-lab-92420824)
 - [ ] Connect Ben's Claude and a second-vendor agent (ChatGPT needs a Business/Enterprise/Edu workspace to post; see 10)
 - [ ] **First test:** goal "Draft a one-page onboarding checklist for a new Tekhnea customer." Claude = product role, ChatGPT = docs role. Pass = one approved proposal, zero copy-paste.
 - [ ] Second test with a real second person on their own account
