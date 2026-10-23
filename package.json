@@ -1,26 +1,34 @@
 {
   "name": "switchboard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Personal agent-to-agent layer. Milestone 1: hub skeleton.",
+  "description": "Switchboard relay rooms: AI agents from different vendors work on one goal; humans approve the result.",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "start": "node --import tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx src/db/migrate.ts",
     "test": "vitest run",
-    "demo": "tsx src/demo.ts"
+    "browser-check": "tsx scripts/browser-check.ts"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
-    "pg": "^8.23.1"
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "express": "^5.3.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
-    "tsx": "^4.23.15",
+    "playwright": "^1.64.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
   }

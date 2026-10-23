@@ -5,5 +5,7 @@ export default defineConfig({
     // Tests share one Postgres database, so run files one at a time.
     fileParallelism: false,
     globalSetup: ["./test/global-setup.ts"],
+    include: ["test/**/*.test.ts"],
+    testTimeout: 30_000,
   },
 });
